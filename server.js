@@ -1,6 +1,7 @@
 const express = require("express");
 const path = require("path");
 const fs = require("fs/promises");
+const crypto = require("crypto");
 const helmet = require("helmet");
 const compression = require("compression");
 
@@ -32,6 +33,18 @@ const SYSTEM_USERS = {
 	admin: { username: "admin", password: "admin", role: "Admin" },
 	user: { username: "user", password: "user", role: "User" },
 };
+
+const issuedTokens = new Map();
+
+function issueAuthToken(account) {
+	const token = crypto.randomBytes(24).toString("hex");
+	issuedTokens.set(token, {
+		username: account.username,
+		role: account.role,
+		issuedAt: Date.now(),
+	});
+	return token;
+}
 
 async function ensureStorageFile() {
 	await fs.mkdir(dataDir, { recursive: true });
@@ -202,10 +215,12 @@ app.post("/api/auth/login", async (req, res) => {
 
 	const systemAccount = SYSTEM_USERS[loginIdentifier];
 	if (systemAccount && systemAccount.password === password) {
+		const token = issueAuthToken(systemAccount);
 		res.json({
 			data: {
 				username: systemAccount.username,
 				role: systemAccount.role,
+				token,
 			},
 		});
 		return;
@@ -223,10 +238,16 @@ app.post("/api/auth/login", async (req, res) => {
 		return;
 	}
 
+	const token = issueAuthToken({
+		username: managedAccount.username,
+		role: managedAccount.kategori,
+	});
+
 	res.json({
 		data: {
 			username: managedAccount.username,
 			role: managedAccount.kategori,
+			token,
 		},
 	});
 });
