@@ -5,19 +5,15 @@ const PICS_KEY = "she_wbs_pics";
 const USER_MASTER_KEY = "she_wbs_user_master";
 const KTA_KEY = "she_wbs_kta";
 const TTA_KEY = "she_wbs_tta";
-const API_BASE_URL = String(document.querySelector('meta[name="api-base-url"]')?.content || "")
-	.trim()
-	.replace(/\/+$/, "");
-
-function buildApiUrl(pathname) {
-	return `${API_BASE_URL}${pathname}`;
-}
-
-const BACKEND_HEALTH_ENDPOINT = buildApiUrl("/api/health");
-const KTA_SYNC_ENDPOINT = buildApiUrl("/api/kta");
-const TTA_SYNC_ENDPOINT = buildApiUrl("/api/tta");
-const MASTER_SYNC_ENDPOINT = buildApiUrl("/api/master");
-const AUTH_LOGIN_ENDPOINT = buildApiUrl("/api/auth/login");
+const BACKEND_HEALTH_ENDPOINT = "/api/health";
+const KTA_SYNC_ENDPOINT = "/api/kta";
+const TTA_SYNC_ENDPOINT = "/api/tta";
+const MASTER_SYNC_ENDPOINT = "/api/master";
+const AUTH_LOGIN_ENDPOINT = "/api/auth/login";
+const USERS_ENDPOINT = "/api/users";
+const DEPARTMENTS_ENDPOINT = "/api/departments";
+const PICS_ENDPOINT = "/api/pics";
+const SESSION_EXPIRED_NOTICE = "Sesi berakhir, silakan login ulang.";
 const DEFAULT_TEMUAN_CATEGORIES = [
 	"Unsafe Action",
 	"Unsafe Condition",
@@ -77,6 +73,31 @@ const ROLE_MENUS = {
 	User: ["My Profile", "Achievement", "Tasklist", "Logout"],
 };
 
+function resolveApiBaseUrl() {
+	const metaElement = document.querySelector('meta[name="api-base-url"]');
+	const configuredValue = String(metaElement?.content || "").trim();
+	return configuredValue.replace(/\/+$/, "");
+}
+
+const API_BASE_URL = resolveApiBaseUrl();
+
+function toApiUrl(endpoint) {
+	const path = String(endpoint || "").trim();
+	if (!path) {
+		return API_BASE_URL || "/";
+	}
+
+	if (/^https?:\/\//i.test(path)) {
+		return path;
+	}
+
+	if (!API_BASE_URL) {
+		return path;
+	}
+
+	return `${API_BASE_URL}${path.startsWith("/") ? path : `/${path}`}`;
+}
+
 function getSession() {
 	const raw = localStorage.getItem(SESSION_KEY);
 	if (!raw) {
@@ -91,6 +112,216 @@ function getSession() {
 	}
 }
 
+function buildAuthHeaders(extraHeaders = {}) {
+	const session = getSession();
+	const token = String(session?.token || "").trim();
+
+	if (!token) {
+		return { ...extraHeaders };
+	}
+
+	return {
+		...extraHeaders,
+		Authorization: `Bearer ${token}`,
+	};
+}
+
+let isHandlingUnauthorized = false;
+let pendingSessionNotice = "";
+
+function handleUnauthorizedResponse() {
+	if (isHandlingUnauthorized) {
+		return;
+	}
+
+	const session = getSession();
+	if (!session) {
+		return;
+	}
+
+	isHandlingUnauthorized = true;
+	pendingSessionNotice = SESSION_EXPIRED_NOTICE;
+	clearSession();
+	renderApp();
+	setTimeout(() => {
+		isHandlingUnauthorized = false;
+	}, 0);
+}
+
+function encodePathSegment(value) {
+	return encodeURIComponent(String(value || "").trim());
+}
+
+async function apiRequest(endpoint, options = {}) {
+	const method = String(options.method || "GET").toUpperCase();
+	const hasBody = options.body !== undefined;
+
+	const headers = buildAuthHeaders({
+		Accept: "application/json",
+		...(hasBody ? { "Content-Type": "application/json" } : {}),
+		...(options.headers || {}),
+	});
+
+	try {
+		const response = await fetch(toApiUrl(endpoint), {
+			method,
+			headers,
+			...(hasBody ? { body: JSON.stringify(options.body) } : {}),
+		});
+
+		let payload = null;
+		try {
+			payload = await response.json();
+		} catch (error) {
+			payload = null;
+		}
+
+		if (response.status === 401) {
+			handleUnauthorizedResponse();
+		}
+
+		return {
+			ok: response.ok,
+			status: response.status,
+			payload,
+		};
+	} catch (error) {
+		return {
+			ok: false,
+			status: 0,
+			payload: { message: "Gagal terhubung ke backend." },
+		};
+	}
+}
+
+function getApiErrorMessage(result, fallbackMessage) {
+	const message = String(result?.payload?.message || "").trim();
+	if (message) {
+		return message;
+	}
+
+	if (result?.status === 401) {
+		return "Sesi login tidak valid atau sudah berakhir. Silakan login ulang.";
+	}
+
+	return fallbackMessage;
+}
+
+async function runWithButtonLoading(buttonElement, loadingText, action) {
+	if (!buttonElement) {
+		await action();
+		return;
+	}
+
+	const originalText = buttonElement.textContent;
+	buttonElement.disabled = true;
+	buttonElement.textContent = loadingText;
+
+	try {
+		await action();
+	} finally {
+		buttonElement.disabled = false;
+		buttonElement.textContent = originalText;
+	}
+}
+
+async function runWithFormControlsDisabled(formElement, action) {
+	if (!formElement) {
+		await action();
+		return;
+	}
+
+	const controls = Array.from(formElement.elements || []);
+	const previousDisabledStates = controls.map((control) => Boolean(control.disabled));
+
+	controls.forEach((control) => {
+		control.disabled = true;
+	});
+
+	try {
+		await action();
+	} finally {
+		controls.forEach((control, index) => {
+			control.disabled = previousDisabledStates[index];
+		});
+	}
+}
+
+async function createKtaRecord(record) {
+	return apiRequest(KTA_SYNC_ENDPOINT, { method: "POST", body: { data: record } });
+}
+
+async function updateKtaRecord(noId, updates) {
+	return apiRequest(`${KTA_SYNC_ENDPOINT}/${encodePathSegment(noId)}`, {
+		method: "PUT",
+		body: { data: updates },
+	});
+}
+
+async function deleteKtaRecord(noId) {
+	return apiRequest(`${KTA_SYNC_ENDPOINT}/${encodePathSegment(noId)}`, { method: "DELETE" });
+}
+
+async function createTtaRecord(record) {
+	return apiRequest(TTA_SYNC_ENDPOINT, { method: "POST", body: { data: record } });
+}
+
+async function updateTtaRecord(noId, updates) {
+	return apiRequest(`${TTA_SYNC_ENDPOINT}/${encodePathSegment(noId)}`, {
+		method: "PUT",
+		body: { data: updates },
+	});
+}
+
+async function deleteTtaRecord(noId) {
+	return apiRequest(`${TTA_SYNC_ENDPOINT}/${encodePathSegment(noId)}`, { method: "DELETE" });
+}
+
+async function createManagedUser(userData) {
+	return apiRequest(USERS_ENDPOINT, { method: "POST", body: { data: userData } });
+}
+
+async function updateManagedUser(username, updates) {
+	return apiRequest(`${USERS_ENDPOINT}/${encodePathSegment(username)}`, {
+		method: "PUT",
+		body: { data: updates },
+	});
+}
+
+async function deleteManagedUser(username) {
+	return apiRequest(`${USERS_ENDPOINT}/${encodePathSegment(username)}`, { method: "DELETE" });
+}
+
+async function createDepartment(name) {
+	return apiRequest(DEPARTMENTS_ENDPOINT, { method: "POST", body: { name } });
+}
+
+async function updateDepartment(currentName, nextName) {
+	return apiRequest(`${DEPARTMENTS_ENDPOINT}/${encodePathSegment(currentName)}`, {
+		method: "PUT",
+		body: { name: nextName },
+	});
+}
+
+async function deleteDepartment(name) {
+	return apiRequest(`${DEPARTMENTS_ENDPOINT}/${encodePathSegment(name)}`, { method: "DELETE" });
+}
+
+async function createPic(name) {
+	return apiRequest(PICS_ENDPOINT, { method: "POST", body: { name } });
+}
+
+async function updatePic(currentName, nextName) {
+	return apiRequest(`${PICS_ENDPOINT}/${encodePathSegment(currentName)}`, {
+		method: "PUT",
+		body: { name: nextName },
+	});
+}
+
+async function deletePic(name) {
+	return apiRequest(`${PICS_ENDPOINT}/${encodePathSegment(name)}`, { method: "DELETE" });
+}
+
 async function updateBackendStatus() {
 	const statusElement = document.getElementById("backendStatus");
 	if (!statusElement) {
@@ -101,7 +332,7 @@ async function updateBackendStatus() {
 	statusElement.classList.remove("backend-status-online", "backend-status-offline");
 
 	try {
-		const response = await fetch(BACKEND_HEALTH_ENDPOINT, {
+		const response = await fetch(toApiUrl(BACKEND_HEALTH_ENDPOINT), {
 			method: "GET",
 			headers: {
 				Accept: "application/json",
@@ -122,14 +353,17 @@ async function updateBackendStatus() {
 
 async function fetchRecordsFromBackend(endpoint) {
 	try {
-		const response = await fetch(endpoint, {
+		const response = await fetch(toApiUrl(endpoint), {
 			method: "GET",
-			headers: {
+			headers: buildAuthHeaders({
 				Accept: "application/json",
-			},
+			}),
 		});
 
 		if (!response.ok) {
+			if (response.status === 401) {
+				handleUnauthorizedResponse();
+			}
 			return null;
 		}
 
@@ -143,13 +377,17 @@ async function fetchRecordsFromBackend(endpoint) {
 
 async function pushRecordsToBackend(endpoint, records) {
 	try {
-		await fetch(endpoint, {
+		const response = await fetch(toApiUrl(endpoint), {
 			method: "PUT",
-			headers: {
+			headers: buildAuthHeaders({
 				"Content-Type": "application/json",
-			},
+			}),
 			body: JSON.stringify({ data: records }),
 		});
+
+		if (!response.ok && response.status === 401) {
+			handleUnauthorizedResponse();
+		}
 	} catch (error) {
 		return;
 	}
@@ -189,14 +427,17 @@ async function syncArrayData(endpoint, localStorageKey) {
 
 async function fetchMasterFromBackend() {
 	try {
-		const response = await fetch(MASTER_SYNC_ENDPOINT, {
+		const response = await fetch(toApiUrl(MASTER_SYNC_ENDPOINT), {
 			method: "GET",
-			headers: {
+			headers: buildAuthHeaders({
 				Accept: "application/json",
-			},
+			}),
 		});
 
 		if (!response.ok) {
+			if (response.status === 401) {
+				handleUnauthorizedResponse();
+			}
 			return null;
 		}
 
@@ -218,13 +459,17 @@ async function fetchMasterFromBackend() {
 
 async function pushMasterToBackend(masterData) {
 	try {
-		await fetch(MASTER_SYNC_ENDPOINT, {
+		const response = await fetch(toApiUrl(MASTER_SYNC_ENDPOINT), {
 			method: "PUT",
-			headers: {
+			headers: buildAuthHeaders({
 				"Content-Type": "application/json",
-			},
+			}),
 			body: JSON.stringify({ data: masterData }),
 		});
+
+		if (!response.ok && response.status === 401) {
+			handleUnauthorizedResponse();
+		}
 	} catch (error) {
 		return;
 	}
@@ -612,7 +857,7 @@ function getTemuanCategoryOptions() {
 
 async function resolveLoginAccount(loginIdentifier, password) {
 	try {
-		const response = await fetch(AUTH_LOGIN_ENDPOINT, {
+		const response = await fetch(toApiUrl(AUTH_LOGIN_ENDPOINT), {
 			method: "POST",
 			headers: {
 				"Content-Type": "application/json",
@@ -622,10 +867,11 @@ async function resolveLoginAccount(loginIdentifier, password) {
 
 		if (response.ok) {
 			const payload = await response.json();
-			if (payload?.data?.username && payload?.data?.role) {
+			if (payload?.data?.username && payload?.data?.role && payload?.data?.token) {
 				return {
 					username: payload.data.username,
 					role: payload.data.role,
+					token: payload.data.token,
 				};
 			}
 		}
@@ -635,7 +881,7 @@ async function resolveLoginAccount(loginIdentifier, password) {
 	const normalizedIdentifier = loginIdentifier.trim().toLowerCase();
 	const systemAccount = USERS[normalizedIdentifier];
 	if (systemAccount && systemAccount.password === password) {
-		return { username: systemAccount.username, role: systemAccount.role };
+		return { username: systemAccount.username, role: systemAccount.role, token: "local-fallback-token" };
 	}
 
 	const managedAccount = getManagedUsers().find((item) => {
@@ -650,6 +896,7 @@ async function resolveLoginAccount(loginIdentifier, password) {
 	return {
 		username: managedAccount.username,
 		role: managedAccount.kategori,
+		token: "local-fallback-token",
 	};
 }
 
@@ -697,22 +944,32 @@ function renderLogin() {
 	const usernameInput = document.getElementById("username");
 	const passwordInput = document.getElementById("password");
 	const errorText = document.getElementById("errorText");
+	const loginSubmitButton = loginForm.querySelector('button[type="submit"]');
+
+	if (pendingSessionNotice) {
+		errorText.textContent = pendingSessionNotice;
+		pendingSessionNotice = "";
+	}
 
 	loginForm.addEventListener("submit", async (event) => {
 		event.preventDefault();
+		errorText.textContent = "";
 
-		const loginIdentifier = usernameInput.value.trim();
-		const password = passwordInput.value.trim();
+		await runWithButtonLoading(loginSubmitButton, "Login...", async () => {
+			const loginIdentifier = usernameInput.value.trim();
+			const password = passwordInput.value.trim();
 
-		const account = await resolveLoginAccount(loginIdentifier, password);
+			const account = await resolveLoginAccount(loginIdentifier, password);
 
-		if (!account) {
-			errorText.textContent = "Username/email atau password tidak valid.";
-			return;
-		}
+			if (!account) {
+				errorText.textContent = "Username/email atau password tidak valid.";
+				return;
+			}
 
-		setSession(account);
-		renderApp();
+			setSession(account);
+			await hydrateRecordsFromBackend();
+			renderApp();
+		});
 	});
 }
 
@@ -2465,11 +2722,24 @@ function renderDashboard(session) {
 				});
 
 				deleteButtons.forEach((button) => {
-					button.addEventListener("click", () => {
+					button.addEventListener("click", async () => {
+						ktaError.textContent = "";
+						ktaSuccess.textContent = "";
 						const index = Number(button.dataset.index);
 						const recordsNow = getKtaRecords();
+						const selectedRecord = recordsNow[index];
+						if (!selectedRecord) {
+							return;
+						}
+
+						const deleteResult = await deleteKtaRecord(selectedRecord.noId);
+						if (!deleteResult.ok) {
+							ktaError.textContent = getApiErrorMessage(deleteResult, "Gagal menghapus data KTA di backend.");
+							return;
+						}
+
 						recordsNow.splice(index, 1);
-						setKtaRecords(recordsNow);
+						writeLocalArray(KTA_KEY, recordsNow);
 
 						if (editIndex === index) {
 							resetKtaForm();
@@ -2514,6 +2784,9 @@ function renderDashboard(session) {
 			event.preventDefault();
 			ktaError.textContent = "";
 			ktaSuccess.textContent = "";
+
+			await runWithButtonLoading(ktaSubmitBtn, "Menyimpan...", async () => {
+			await runWithFormControlsDisabled(ktaForm, async () => {
 
 			const formData = new FormData(ktaForm);
 			const fotoTemuanFiles = document.getElementById("ktaFotoTemuan").files || [];
@@ -2627,12 +2900,30 @@ function renderDashboard(session) {
 			const records = getKtaRecords();
 
 			if (editIndex >= 0 && isSuperAdmin) {
-				records[editIndex] = payload;
-			} else {
-				records.push(payload);
-			}
+				const currentRecord = records[editIndex];
+				if (!currentRecord) {
+					ktaError.textContent = "Data KTA yang akan diperbarui tidak ditemukan.";
+					return;
+				}
 
-			setKtaRecords(records);
+				const updateResult = await updateKtaRecord(currentRecord.noId, payload);
+				if (!updateResult.ok) {
+					ktaError.textContent = getApiErrorMessage(updateResult, "Gagal memperbarui data KTA di backend.");
+					return;
+				}
+
+				records[editIndex] = payload;
+				writeLocalArray(KTA_KEY, records);
+			} else {
+				const createResult = await createKtaRecord(payload);
+				if (!createResult.ok) {
+					ktaError.textContent = getApiErrorMessage(createResult, "Gagal menyimpan data KTA ke backend.");
+					return;
+				}
+
+				records.push(payload);
+				writeLocalArray(KTA_KEY, records);
+			}
 
 			ktaSuccess.textContent =
 				editIndex >= 0 && isSuperAdmin
@@ -2640,6 +2931,8 @@ function renderDashboard(session) {
 					: `Data KTA berhasil disimpan dengan No ID ${payload.noId}.`;
 			resetKtaForm();
 			renderKtaHistory();
+			});
+			});
 		});
 
 		if (ktaCancelEditBtn) {
@@ -3017,11 +3310,24 @@ function renderDashboard(session) {
 			});
 
 			deleteButtons.forEach((button) => {
-				button.addEventListener("click", () => {
+				button.addEventListener("click", async () => {
+					ttaError.textContent = "";
+					ttaSuccess.textContent = "";
 					const index = Number(button.dataset.index);
 					const recordsNow = getTtaRecords();
+					const selectedRecord = recordsNow[index];
+					if (!selectedRecord) {
+						return;
+					}
+
+					const deleteResult = await deleteTtaRecord(selectedRecord.noId);
+					if (!deleteResult.ok) {
+						ttaError.textContent = getApiErrorMessage(deleteResult, "Gagal menghapus data TTA di backend.");
+						return;
+					}
+
 					recordsNow.splice(index, 1);
-					setTtaRecords(recordsNow);
+					writeLocalArray(TTA_KEY, recordsNow);
 
 					if (editIndex === index) {
 						resetTtaForm();
@@ -3065,6 +3371,9 @@ function renderDashboard(session) {
 			event.preventDefault();
 			ttaError.textContent = "";
 			ttaSuccess.textContent = "";
+
+			await runWithButtonLoading(ttaSubmitBtn, "Menyimpan...", async () => {
+			await runWithFormControlsDisabled(ttaForm, async () => {
 
 			const formData = new FormData(ttaForm);
 			const fotoTemuanFiles = document.getElementById("ttaFotoTemuan").files || [];
@@ -3199,15 +3508,36 @@ function renderDashboard(session) {
 
 			const records = getTtaRecords();
 			if (editIndex >= 0) {
+				const currentRecord = records[editIndex];
+				if (!currentRecord) {
+					ttaError.textContent = "Data TTA yang akan diperbarui tidak ditemukan.";
+					return;
+				}
+
+				const updateResult = await updateTtaRecord(currentRecord.noId, payload);
+				if (!updateResult.ok) {
+					ttaError.textContent = getApiErrorMessage(updateResult, "Gagal memperbarui data TTA di backend.");
+					return;
+				}
+
 				records[editIndex] = payload;
+				writeLocalArray(TTA_KEY, records);
 			} else {
+				const createResult = await createTtaRecord(payload);
+				if (!createResult.ok) {
+					ttaError.textContent = getApiErrorMessage(createResult, "Gagal menyimpan data TTA ke backend.");
+					return;
+				}
+
 				records.push(payload);
+				writeLocalArray(TTA_KEY, records);
 			}
-			setTtaRecords(records);
 
 			ttaSuccess.textContent = editIndex >= 0 ? `Data TTA berhasil diperbarui dengan No ID ${payload.noId}.` : `Data TTA berhasil disimpan dengan No ID ${payload.noId}.`;
 			resetTtaForm();
 			renderTtaHistory();
+			});
+			});
 		});
 
 		ttaCancelEditBtn.addEventListener("click", () => {
@@ -3300,6 +3630,7 @@ function renderDashboard(session) {
 
 		let users = getManagedUsers();
 		let editIndex = -1;
+		let editUsernameKey = "";
 
 		function getFormData() {
 			const formData = new FormData(userForm);
@@ -3395,6 +3726,7 @@ function renderDashboard(session) {
 		function resetForm() {
 			userForm.reset();
 			editIndex = -1;
+			editUsernameKey = "";
 			saveUserBtn.textContent = "Tambah";
 			cancelUserEditBtn.classList.add("hidden");
 			userError.textContent = "";
@@ -3411,7 +3743,8 @@ function renderDashboard(session) {
 					(item, index) => `
 						<div class="list-item">
 							<div>
-								<div class="list-text">${item.username}</div>
+								<div class="list-text">${item.namaLengkap || "-"}</div>
+								<div class="subtitle">${item.username}</div>
 								<div class="subtitle">${item.kategori} • ${item.perusahaan || "-"} • ${item.departemen}</div>
 							</div>
 							<div class="list-actions">
@@ -3432,6 +3765,7 @@ function renderDashboard(session) {
 				button.addEventListener("click", () => {
 					const index = Number(button.dataset.index);
 					editIndex = index;
+					editUsernameKey = String(users[index]?.username || "").trim();
 					fillForm(users[index]);
 					saveUserBtn.textContent = "Simpan Perubahan";
 					cancelUserEditBtn.classList.remove("hidden");
@@ -3439,10 +3773,22 @@ function renderDashboard(session) {
 			});
 
 			deleteButtons.forEach((button) => {
-				button.addEventListener("click", () => {
+				button.addEventListener("click", async () => {
+					userError.textContent = "";
 					const index = Number(button.dataset.index);
+					const selectedUser = users[index];
+					if (!selectedUser) {
+						return;
+					}
+
+					const deleteResult = await deleteManagedUser(selectedUser.username);
+					if (!deleteResult.ok) {
+						userError.textContent = getApiErrorMessage(deleteResult, "Gagal menghapus user di backend.");
+						return;
+					}
+
 					users.splice(index, 1);
-					setManagedUsers(users);
+					writeLocalArray(USER_MASTER_KEY, users);
 
 					if (editIndex === index) {
 						resetForm();
@@ -3453,25 +3799,44 @@ function renderDashboard(session) {
 			});
 		}
 
-		userForm.addEventListener("submit", (event) => {
+		userForm.addEventListener("submit", async (event) => {
 			event.preventDefault();
+			userError.textContent = "";
 
-			const userData = getFormData();
-			const validationError = validateUserData(userData);
-			if (validationError) {
-				userError.textContent = validationError;
-				return;
-			}
+			await runWithButtonLoading(saveUserBtn, "Menyimpan...", async () => {
+				await runWithFormControlsDisabled(userForm, async () => {
+				const userData = getFormData();
+				const validationError = validateUserData(userData);
+				if (validationError) {
+					userError.textContent = validationError;
+					return;
+				}
 
-			if (editIndex >= 0) {
-				users[editIndex] = userData;
-			} else {
-				users.push(userData);
-			}
+				if (editIndex >= 0) {
+					const targetUsername = editUsernameKey || userData.username;
+					const updateResult = await updateManagedUser(targetUsername, userData);
+					if (!updateResult.ok) {
+						userError.textContent = getApiErrorMessage(updateResult, "Gagal memperbarui user di backend.");
+						return;
+					}
 
-			setManagedUsers(users);
-			resetForm();
-			renderUserList();
+					users[editIndex] = userData;
+					writeLocalArray(USER_MASTER_KEY, users);
+				} else {
+					const createResult = await createManagedUser(userData);
+					if (!createResult.ok) {
+						userError.textContent = getApiErrorMessage(createResult, "Gagal menambah user ke backend.");
+						return;
+					}
+
+					users.push(userData);
+					writeLocalArray(USER_MASTER_KEY, users);
+				}
+
+				resetForm();
+				renderUserList();
+				});
+			});
 		});
 
 		cancelUserEditBtn.addEventListener("click", () => {
@@ -3513,10 +3878,12 @@ function renderDashboard(session) {
 
 		let departments = getDepartments();
 		let editIndex = -1;
+		let editDepartmentName = "";
 
 		function resetForm() {
 			departmentForm.reset();
 			editIndex = -1;
+			editDepartmentName = "";
 			saveDepartmentBtn.textContent = "Tambah";
 			cancelEditBtn.classList.add("hidden");
 			departmentError.textContent = "";
@@ -3551,6 +3918,7 @@ function renderDashboard(session) {
 				button.addEventListener("click", () => {
 					const index = Number(button.dataset.index);
 					editIndex = index;
+					editDepartmentName = String(departments[index] || "").trim();
 					departmentName.value = departments[index];
 					saveDepartmentBtn.textContent = "Simpan Perubahan";
 					cancelEditBtn.classList.remove("hidden");
@@ -3559,10 +3927,22 @@ function renderDashboard(session) {
 			});
 
 			deleteButtons.forEach((button) => {
-				button.addEventListener("click", () => {
+				button.addEventListener("click", async () => {
+					departmentError.textContent = "";
 					const index = Number(button.dataset.index);
+					const selectedDepartment = String(departments[index] || "").trim();
+					if (!selectedDepartment) {
+						return;
+					}
+
+					const deleteResult = await deleteDepartment(selectedDepartment);
+					if (!deleteResult.ok) {
+						departmentError.textContent = getApiErrorMessage(deleteResult, "Gagal menghapus departemen di backend.");
+						return;
+					}
+
 					departments.splice(index, 1);
-					setDepartments(departments);
+					writeLocalArray(DEPARTMENTS_KEY, departments);
 
 					if (editIndex === index) {
 						resetForm();
@@ -3573,25 +3953,43 @@ function renderDashboard(session) {
 			});
 		}
 
-		departmentForm.addEventListener("submit", (event) => {
+		departmentForm.addEventListener("submit", async (event) => {
 			event.preventDefault();
+			departmentError.textContent = "";
 
-			const value = departmentName.value.trim();
+			await runWithButtonLoading(saveDepartmentBtn, "Menyimpan...", async () => {
+				await runWithFormControlsDisabled(departmentForm, async () => {
+				const value = departmentName.value.trim();
 
-			if (!value) {
-				departmentError.textContent = "Field Departemen wajib diisi.";
-				return;
-			}
+				if (!value) {
+					departmentError.textContent = "Field Departemen wajib diisi.";
+					return;
+				}
 
-			if (editIndex >= 0) {
-				departments[editIndex] = value;
-			} else {
-				departments.push(value);
-			}
+				if (editIndex >= 0) {
+					const updateResult = await updateDepartment(editDepartmentName || value, value);
+					if (!updateResult.ok) {
+						departmentError.textContent = getApiErrorMessage(updateResult, "Gagal memperbarui departemen di backend.");
+						return;
+					}
 
-			setDepartments(departments);
-			resetForm();
-			renderDepartmentList();
+					departments[editIndex] = value;
+					writeLocalArray(DEPARTMENTS_KEY, departments);
+				} else {
+					const createResult = await createDepartment(value);
+					if (!createResult.ok) {
+						departmentError.textContent = getApiErrorMessage(createResult, "Gagal menambah departemen ke backend.");
+						return;
+					}
+
+					departments.push(value);
+					writeLocalArray(DEPARTMENTS_KEY, departments);
+				}
+
+				resetForm();
+				renderDepartmentList();
+				});
+			});
 		});
 
 		cancelEditBtn.addEventListener("click", () => {
@@ -3642,10 +4040,12 @@ function renderDashboard(session) {
 
 		let pics = getPics();
 		let editIndex = -1;
+		let editPicName = "";
 
 		function resetForm() {
 			picForm.reset();
 			editIndex = -1;
+			editPicName = "";
 			savePicBtn.textContent = "Tambah";
 			cancelPicEditBtn.classList.add("hidden");
 			picError.textContent = "";
@@ -3680,6 +4080,7 @@ function renderDashboard(session) {
 				button.addEventListener("click", () => {
 					const index = Number(button.dataset.index);
 					editIndex = index;
+					editPicName = String(pics[index] || "").trim();
 					picName.value = pics[index];
 					savePicBtn.textContent = "Simpan Perubahan";
 					cancelPicEditBtn.classList.remove("hidden");
@@ -3688,10 +4089,22 @@ function renderDashboard(session) {
 			});
 
 			deleteButtons.forEach((button) => {
-				button.addEventListener("click", () => {
+				button.addEventListener("click", async () => {
+					picError.textContent = "";
 					const index = Number(button.dataset.index);
+					const selectedPic = String(pics[index] || "").trim();
+					if (!selectedPic) {
+						return;
+					}
+
+					const deleteResult = await deletePic(selectedPic);
+					if (!deleteResult.ok) {
+						picError.textContent = getApiErrorMessage(deleteResult, "Gagal menghapus PIC di backend.");
+						return;
+					}
+
 					pics.splice(index, 1);
-					setPics(pics);
+					writeLocalArray(PICS_KEY, pics);
 
 					if (editIndex === index) {
 						resetForm();
@@ -3702,25 +4115,43 @@ function renderDashboard(session) {
 			});
 		}
 
-		picForm.addEventListener("submit", (event) => {
+		picForm.addEventListener("submit", async (event) => {
 			event.preventDefault();
+			picError.textContent = "";
 
-			const value = picName.value.trim();
+			await runWithButtonLoading(savePicBtn, "Menyimpan...", async () => {
+				await runWithFormControlsDisabled(picForm, async () => {
+				const value = picName.value.trim();
 
-			if (!value) {
-				picError.textContent = "Field PIC wajib dipilih.";
-				return;
-			}
+				if (!value) {
+					picError.textContent = "Field PIC wajib dipilih.";
+					return;
+				}
 
-			if (editIndex >= 0) {
-				pics[editIndex] = value;
-			} else {
-				pics.push(value);
-			}
+				if (editIndex >= 0) {
+					const updateResult = await updatePic(editPicName || value, value);
+					if (!updateResult.ok) {
+						picError.textContent = getApiErrorMessage(updateResult, "Gagal memperbarui PIC di backend.");
+						return;
+					}
 
-			setPics(pics);
-			resetForm();
-			renderPicList();
+					pics[editIndex] = value;
+					writeLocalArray(PICS_KEY, pics);
+				} else {
+					const createResult = await createPic(value);
+					if (!createResult.ok) {
+						picError.textContent = getApiErrorMessage(createResult, "Gagal menambah PIC ke backend.");
+						return;
+					}
+
+					pics.push(value);
+					writeLocalArray(PICS_KEY, pics);
+				}
+
+				resetForm();
+				renderPicList();
+				});
+			});
 		});
 
 		cancelPicEditBtn.addEventListener("click", () => {
@@ -3922,6 +4353,7 @@ function renderDashboard(session) {
 				const taskProcessForm = document.getElementById("taskProcessForm");
 				const taskProcessError = document.getElementById("taskProcessError");
 				const taskProcessSuccess = document.getElementById("taskProcessSuccess");
+				const taskProcessSubmitBtn = taskProcessForm.querySelector('button[type="submit"]');
 
 				closeTaskProcess.addEventListener("click", () => {
 					taskProcessPanel.classList.add("hidden");
@@ -3932,6 +4364,9 @@ function renderDashboard(session) {
 					event.preventDefault();
 					taskProcessError.textContent = "";
 					taskProcessSuccess.textContent = "";
+
+					await runWithButtonLoading(taskProcessSubmitBtn, "Menyimpan...", async () => {
+					await runWithFormControlsDisabled(taskProcessForm, async () => {
 
 					const formData = new FormData(taskProcessForm);
 					const tindakanPerbaikan = String(formData.get("tindakanPerbaikan") || "").trim();
@@ -3956,25 +4391,42 @@ function renderDashboard(session) {
 						return;
 					}
 
-					target.tindakanPerbaikan = tindakanPerbaikan;
-					target.tanggalPerbaikan = tanggalPerbaikan;
-					target.status = status;
-
 					const newPhotos = await readFilesAsDataUrls(fotoPerbaikanFiles);
-					if (newPhotos.length > 0) {
-						target.fotoPerbaikan = newPhotos;
-					} else {
-						target.fotoPerbaikan = Array.isArray(target.fotoPerbaikan) ? target.fotoPerbaikan : [];
-					}
+					const payload = {
+						...target,
+						tindakanPerbaikan,
+						tanggalPerbaikan,
+						status,
+						fotoPerbaikan:
+							newPhotos.length > 0
+								? newPhotos
+								: Array.isArray(target.fotoPerbaikan)
+									? target.fotoPerbaikan
+									: [],
+					};
 
 					if (source === "kta") {
-						setKtaRecords(recordsNow);
+						const updateResult = await updateKtaRecord(target.noId, payload);
+						if (!updateResult.ok) {
+							taskProcessError.textContent = getApiErrorMessage(updateResult, "Gagal menyimpan tindak lanjut KTA.");
+							return;
+						}
+						recordsNow[sourceIndex] = payload;
+						writeLocalArray(KTA_KEY, recordsNow);
 					} else {
-						setTtaRecords(recordsNow);
+						const updateResult = await updateTtaRecord(target.noId, payload);
+						if (!updateResult.ok) {
+							taskProcessError.textContent = getApiErrorMessage(updateResult, "Gagal menyimpan tindak lanjut TTA.");
+							return;
+						}
+						recordsNow[sourceIndex] = payload;
+						writeLocalArray(TTA_KEY, recordsNow);
 					}
 
 					taskProcessSuccess.textContent = "Tindak lanjut berhasil disimpan.";
 					renderTasklistContent();
+					});
+					});
 				});
 			});
 		});
@@ -4054,7 +4506,10 @@ function renderApp() {
 }
 
 async function startApp() {
-	await hydrateRecordsFromBackend();
+	const session = getSession();
+	if (session) {
+		await hydrateRecordsFromBackend();
+	}
 	renderApp();
 	updateBackendStatus();
 	setInterval(updateBackendStatus, 30000);

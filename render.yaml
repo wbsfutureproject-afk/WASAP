@@ -1,18 +1,29 @@
 services:
   - type: web
-    name: wbs-ios
+    name: wasap
     runtime: node
     plan: free
     autoDeploy: true
+    healthCheckPath: /api/health
     buildCommand: npm install
     startCommand: npm start
     envVars:
       - key: HOST
         value: 0.0.0.0
+      - key: SUPABASE_URL
+        value: https://jxwaloksfyshlhurmple.supabase.co
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: SUPABASE_TABLE
+        value: wbs_storage
+      - key: SUPABASE_RECORD_KEY
+        value: she_wbs
       - key: DATA_DIR
         value: /var/data
+      - key: STORAGE_FILE_PATH
+        value: /var/data/storage.json
       - key: CORS_ALLOWED_ORIGINS
-        sync: false
+        value: https://wasap-kappa.vercel.app
     disk:
       name: wbs-data
       mountPath: /var/data
