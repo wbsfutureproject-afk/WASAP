@@ -50,7 +50,6 @@ function sanitizeStore(rawStore) {
 		users: Array.isArray(rawStore?.users) ? rawStore.users : [],
 	};
 }
-
 function issueAuthToken(account) {
 	const token = crypto.randomBytes(24).toString("hex");
 	issuedTokens.set(token, {
