@@ -5,6 +5,7 @@
 	--muted: #6b7280;
 	--primary: #0b5ed7;
 	--primary-hover: #0a53be;
+	--success: #198754;
 	--danger: #d63384;
 	--border: #d1d5db;
 }
@@ -878,9 +879,9 @@ button {
 }
 
 .task-status-close {
-	color: var(--muted);
-	border-color: var(--border);
-	background: var(--card);
+	color: var(--success);
+	border-color: var(--success);
+	background: #eefaf3;
 }
 
 .task-status-default {

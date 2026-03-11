@@ -1241,6 +1241,50 @@ function renderDashboard(session) {
 		});
 	}
 
+	function getAchievementValidReportDates(records) {
+		return records
+			.map((item) => String(item.tanggalLaporan || "").trim())
+			.filter((reportDate) => /^\d{4}-\d{2}-\d{2}$/.test(reportDate))
+			.sort((a, b) => a.localeCompare(b));
+	}
+
+	function resolveAchievementActiveDateRange(records, startDate, endDate) {
+		const start = String(startDate || "").trim();
+		const end = String(endDate || "").trim();
+		const validDates = getAchievementValidReportDates(records);
+
+		if (validDates.length === 0) {
+			const today = new Date().toISOString().slice(0, 10);
+			return {
+				start: start || end || today,
+				end: end || start || today,
+			};
+		}
+
+		return {
+			start: start || validDates[0],
+			end: end || validDates[validDates.length - 1],
+		};
+	}
+
+	function getAchievementWeekSpan(startDate, endDate) {
+		if (!/^\d{4}-\d{2}-\d{2}$/.test(startDate) || !/^\d{4}-\d{2}-\d{2}$/.test(endDate)) {
+			return 1;
+		}
+
+		const [startYear, startMonth, startDay] = startDate.split("-").map(Number);
+		const [endYear, endMonth, endDay] = endDate.split("-").map(Number);
+		const startUtc = Date.UTC(startYear, startMonth - 1, startDay);
+		const endUtc = Date.UTC(endYear, endMonth - 1, endDay);
+		const diffInDays = Math.floor((endUtc - startUtc) / 86400000) + 1;
+
+		if (diffInDays <= 0) {
+			return 1;
+		}
+
+		return Math.max(1, Math.ceil(diffInDays / 7));
+	}
+
 	function getAchievementStatusSummary(records) {
 		let openCount = 0;
 		let progressCount = 0;
@@ -1790,15 +1834,17 @@ function renderDashboard(session) {
 		`;
 	}
 
-	function renderOperatorCombinedPerformanceTable(ktaRecords, ttaRecords) {
+	function renderOperatorCombinedPerformanceTable(ktaRecords, ttaRecords, startDate, endDate) {
 		const users = getManagedUsers();
 		if (users.length === 0) {
 			return '<p class="subtitle">Daftar User belum tersedia untuk menghitung target gabungan KTA/TTA per pelapor.</p>';
 		}
 
-		const now = new Date();
-		const currentYear = now.getFullYear();
-		const currentMonth = now.getMonth() + 1;
+		const combinedRecords = [...ktaRecords, ...ttaRecords];
+		const activeRange = resolveAchievementActiveDateRange(combinedRecords, startDate, endDate);
+		const activeWeekCount = getAchievementWeekSpan(activeRange.start, activeRange.end);
+		const weeklyTarget = 3;
+		const activeRangeTarget = weeklyTarget * activeWeekCount;
 
 		const rows = users
 			.map((user) => {
@@ -1808,20 +1854,9 @@ function renderDashboard(session) {
 				const normalizedUsername = username.toLowerCase();
 				const normalizedGroup = normalizeJobGroup(user.kelompokJabatan);
 
-				let monthlyAchievement = 0;
-				let yearlyAchievement = 0;
+				let activeRangeAchievement = 0;
 
-				const combinedRecords = [...ktaRecords, ...ttaRecords];
 				combinedRecords.forEach((record) => {
-					const reportDateText = String(record.tanggalLaporan || "").trim();
-					if (!/^\d{4}-\d{2}-\d{2}$/.test(reportDateText)) {
-						return;
-					}
-
-					const [yearText, monthText] = reportDateText.split("-");
-					const recordYear = Number(yearText);
-					const recordMonth = Number(monthText);
-
 					const recordReporterRaw = String(record.namaPelapor || "").trim();
 					const recordReporterFullName = String(getUserFullNameFromIdentifier(recordReporterRaw) || "")
 						.trim()
@@ -1838,21 +1873,17 @@ function renderDashboard(session) {
 						return;
 					}
 
-					if (recordYear === currentYear) {
-						yearlyAchievement += 1;
-						if (recordMonth === currentMonth) {
-							monthlyAchievement += 1;
-						}
-					}
+					activeRangeAchievement += 1;
 				});
 
 				return {
 					reporterName,
 					jobGroup: normalizedGroup || "-",
-					monthlyTarget: 12,
-					monthlyAchievement,
-					yearlyTarget: 144,
-					yearlyAchievement,
+					weeklyTarget,
+					activeWeekCount,
+					activeRangeTarget,
+					activeRangeAchievement,
+					isAchieved: activeRangeAchievement >= activeRangeTarget,
 				};
 			})
 			.filter((item) => item.jobGroup === "OPERATOR")
@@ -1868,10 +1899,11 @@ function renderDashboard(session) {
 					<tr>
 						<td>${escapeAchievementHtml(item.reporterName)}</td>
 						<td>${escapeAchievementHtml(item.jobGroup)}</td>
-						<td>${item.monthlyTarget}</td>
-						<td>${item.monthlyAchievement}</td>
-						<td>${item.yearlyTarget}</td>
-						<td>${item.yearlyAchievement}</td>
+						<td>${item.weeklyTarget}</td>
+						<td>${item.activeWeekCount}</td>
+						<td>${item.activeRangeTarget}</td>
+						<td>${item.activeRangeAchievement}</td>
+						<td><span class="task-status ${item.isAchieved ? "task-status-close" : "task-status-open"}">${item.isAchieved ? "Tercapai" : "Tidak Tercapai"}</span></td>
 					</tr>
 				`,
 			)
@@ -1879,14 +1911,16 @@ function renderDashboard(session) {
 
 		const totals = rows.reduce(
 			(accumulator, item) => {
-				accumulator.monthlyTarget += item.monthlyTarget;
-				accumulator.monthlyAchievement += item.monthlyAchievement;
-				accumulator.yearlyTarget += item.yearlyTarget;
-				accumulator.yearlyAchievement += item.yearlyAchievement;
+				accumulator.weeklyTarget += item.weeklyTarget;
+				accumulator.activeRangeTarget += item.activeRangeTarget;
+				accumulator.activeRangeAchievement += item.activeRangeAchievement;
 				return accumulator;
 			},
-			{ monthlyTarget: 0, monthlyAchievement: 0, yearlyTarget: 0, yearlyAchievement: 0 },
+			{ weeklyTarget: 0, activeRangeTarget: 0, activeRangeAchievement: 0 },
 		);
+
+		const totalStatus = totals.activeRangeAchievement >= totals.activeRangeTarget ? "Tercapai" : "Tidak Tercapai";
+		const totalStatusClass = totals.activeRangeAchievement >= totals.activeRangeTarget ? "task-status-close" : "task-status-open";
 
 		return `
 			<table class="data-table">
@@ -1894,10 +1928,11 @@ function renderDashboard(session) {
 					<tr>
 						<th>Nama Pelapor</th>
 						<th>Kelompok Jabatan</th>
-						<th>Target KTA / TTA Bulanan</th>
-						<th>Pencapaian Bulanan</th>
-						<th>Target KTA / TTA Tahunan</th>
-						<th>Pencapaian Tahunan</th>
+						<th>Target KTA / TTA Mingguan</th>
+						<th>Jumlah Minggu Aktif</th>
+						<th>Target Date Range Aktif</th>
+						<th>Pencapaian Date Range Aktif</th>
+						<th>Status</th>
 					</tr>
 				</thead>
 				<tbody>${rowHtml}</tbody>
@@ -1905,10 +1940,11 @@ function renderDashboard(session) {
 					<tr>
 						<th>Total</th>
 						<th>-</th>
-						<th>${totals.monthlyTarget}</th>
-						<th>${totals.monthlyAchievement}</th>
-						<th>${totals.yearlyTarget}</th>
-						<th>${totals.yearlyAchievement}</th>
+						<th>${totals.weeklyTarget}</th>
+						<th>${activeWeekCount}</th>
+						<th>${totals.activeRangeTarget}</th>
+						<th>${totals.activeRangeAchievement}</th>
+						<th><span class="task-status ${totalStatusClass}">${totalStatus}</span></th>
 					</tr>
 				</tfoot>
 			</table>
@@ -1966,6 +2002,7 @@ function renderDashboard(session) {
 					jobGroup: normalizedGroup || "-",
 					achievementCount,
 					hasLessThanOnePerDate,
+					isAchieved: !hasLessThanOnePerDate,
 				};
 			})
 			.filter((item) => item.jobGroup === "PENGAWAS" || item.jobGroup === "LEVEL 1 MGT")
@@ -1982,12 +2019,15 @@ function renderDashboard(session) {
 						<td class="${item.hasLessThanOnePerDate ? "reporter-low-achievement" : ""}">${escapeAchievementHtml(item.reporterName)}</td>
 						<td>${escapeAchievementHtml(item.jobGroup)}</td>
 						<td>${item.achievementCount}</td>
+						<td><span class="task-status ${item.isAchieved ? "task-status-close" : "task-status-open"}">${item.isAchieved ? "Tercapai" : "Tidak Tercapai"}</span></td>
 					</tr>
 				`,
 			)
 			.join("");
 
 		const totalAchievement = rows.reduce((accumulator, item) => accumulator + item.achievementCount, 0);
+		const totalStatus = rows.every((item) => item.isAchieved) ? "Tercapai" : "Tidak Tercapai";
+		const totalStatusClass = rows.every((item) => item.isAchieved) ? "task-status-close" : "task-status-open";
 
 		return `
 			<table class="data-table">
@@ -1996,6 +2036,7 @@ function renderDashboard(session) {
 						<th>Nama Pelapor</th>
 						<th>Kelompok Jabatan</th>
 						<th>Pencapaian KTA (Date Range Aktif)</th>
+						<th>Status</th>
 					</tr>
 				</thead>
 				<tbody>${rowHtml}</tbody>
@@ -2004,6 +2045,7 @@ function renderDashboard(session) {
 						<th>Total</th>
 						<th>-</th>
 						<th>${totalAchievement}</th>
+						<th><span class="task-status ${totalStatusClass}">${totalStatus}</span></th>
 					</tr>
 				</tfoot>
 			</table>
@@ -2061,6 +2103,7 @@ function renderDashboard(session) {
 					jobGroup: normalizedGroup || "-",
 					achievementCount,
 					hasLessThanTwoPerDate,
+					isAchieved: !hasLessThanTwoPerDate,
 				};
 			})
 			.filter((item) => item.jobGroup === "PENGAWAS" || item.jobGroup === "LEVEL 1 MGT")
@@ -2077,12 +2120,15 @@ function renderDashboard(session) {
 						<td class="${item.hasLessThanTwoPerDate ? "reporter-low-achievement" : ""}">${escapeAchievementHtml(item.reporterName)}</td>
 						<td>${escapeAchievementHtml(item.jobGroup)}</td>
 						<td>${item.achievementCount}</td>
+						<td><span class="task-status ${item.isAchieved ? "task-status-close" : "task-status-open"}">${item.isAchieved ? "Tercapai" : "Tidak Tercapai"}</span></td>
 					</tr>
 				`,
 			)
 			.join("");
 
 		const totalAchievement = rows.reduce((accumulator, item) => accumulator + item.achievementCount, 0);
+		const totalStatus = rows.every((item) => item.isAchieved) ? "Tercapai" : "Tidak Tercapai";
+		const totalStatusClass = rows.every((item) => item.isAchieved) ? "task-status-close" : "task-status-open";
 
 		return `
 			<table class="data-table">
@@ -2091,6 +2137,7 @@ function renderDashboard(session) {
 						<th>Nama Pelapor</th>
 						<th>Kelompok Jabatan</th>
 						<th>Pencapaian TTA (Date Range Aktif)</th>
+						<th>Status</th>
 					</tr>
 				</thead>
 				<tbody>${rowHtml}</tbody>
@@ -2099,6 +2146,7 @@ function renderDashboard(session) {
 						<th>Total</th>
 						<th>-</th>
 						<th>${totalAchievement}</th>
+						<th><span class="task-status ${totalStatusClass}">${totalStatus}</span></th>
 					</tr>
 				</tfoot>
 			</table>
@@ -2187,9 +2235,9 @@ function renderDashboard(session) {
 				}
 				<section class="achievement-section">
 					<h3>Target dan Pencapaian Gabungan KTA / TTA (OPERATOR)</h3>
-					<p class="subtitle">Menampilkan Kelompok Jabatan OPERATOR dengan target tetap bulanan 12 serta tahunan 144.</p>
+					<p class="subtitle">Menampilkan Kelompok Jabatan OPERATOR dengan target 3 per minggu. Total target otomatis mengikuti date range aktif.</p>
 					<div class="table-wrap kta-performance-table-wrap">
-						${renderOperatorCombinedPerformanceTable(allKtaRecords, allTtaRecords)}
+						${renderOperatorCombinedPerformanceTable(rangedKtaRecords, rangedTtaRecords, dateRangeStart, dateRangeEnd)}
 					</div>
 				</section>
 				${
@@ -2242,9 +2290,9 @@ function renderDashboard(session) {
 				}
 				<section class="achievement-section">
 					<h3>Target dan Pencapaian Gabungan KTA / TTA (OPERATOR)</h3>
-					<p class="subtitle">Menampilkan Kelompok Jabatan OPERATOR dengan target tetap bulanan 12 serta tahunan 144.</p>
+					<p class="subtitle">Menampilkan Kelompok Jabatan OPERATOR dengan target 3 per minggu. Total target otomatis mengikuti date range aktif.</p>
 					<div class="table-wrap kta-performance-table-wrap">
-						${renderOperatorCombinedPerformanceTable(allKtaRecords, allTtaRecords)}
+						${renderOperatorCombinedPerformanceTable(rangedKtaRecords, rangedTtaRecords, dateRangeStart, dateRangeEnd)}
 					</div>
 				</section>
 				${
