@@ -3743,9 +3743,9 @@ function renderDashboard(session) {
 					(item, index) => `
 						<div class="list-item">
 							<div>
-								<div class="list-text">${item.namaLengkap || "-"}</div>
-								<div class="subtitle">${item.username}</div>
-								<div class="subtitle">${item.kategori} • ${item.perusahaan || "-"} • ${item.departemen}</div>
+								<div class="list-text">Nama Lengkap: <strong>${item.namaLengkap || "(Tidak Tersedia)"}</strong></div>
+								<div class="subtitle">Username: ${item.username || "(Tidak Tersedia)"}</div>
+								<div class="subtitle">Kategori: ${item.kategori || "(Tidak Tersedia)"} • Perusahaan: ${item.perusahaan || "(Tidak Tersedia)"} • Departemen: ${item.departemen || "(Tidak Tersedia)"}</div>
 							</div>
 							<div class="list-actions">
 								<button type="button" class="btn-small btn-edit" data-index="${index}">Ubah</button>
