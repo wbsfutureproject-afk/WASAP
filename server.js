@@ -207,6 +207,46 @@ function getTextFromBody(body, fieldName) {
 	return "";
 }
 
+function normalizeUserPayload(payload, existingUser = null) {
+	if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+		return null;
+	}
+
+	const source = { ...(existingUser || {}), ...payload };
+	const normalizedUser = {
+		...source,
+		username: String(source.username || source.userName || source.user || "").trim(),
+		password: String(source.password || source.kataSandi || source.pass || ""),
+		alamatEmail: String(source.alamatEmail || source.email || "").trim().toLowerCase(),
+		kategori: String(source.kategori || source.role || "").trim(),
+	};
+
+	if (!normalizedUser.username || !normalizedUser.password) {
+		return null;
+	}
+
+	if (!normalizedUser.kategori) {
+		normalizedUser.kategori = "User";
+	}
+
+	delete normalizedUser.userName;
+	delete normalizedUser.user;
+	delete normalizedUser.kataSandi;
+	delete normalizedUser.pass;
+	delete normalizedUser.email;
+	delete normalizedUser.role;
+
+	return normalizedUser;
+}
+
+function resolveManagedAccount(storeUsers, loginIdentifier) {
+	return storeUsers.find((item) => {
+		const itemUsername = normalizeKey(item?.username || item?.userName || item?.user);
+		const itemEmail = normalizeKey(item?.alamatEmail || item?.email);
+		return itemUsername === loginIdentifier || itemEmail === loginIdentifier;
+	});
+}
+
 app.use(helmet({
 	contentSecurityPolicy: false,
 }));
@@ -540,11 +580,13 @@ app.post("/api/users", async (req, res) => {
 		return;
 	}
 
-	const username = String(incoming.username || "").trim();
-	if (!username) {
-		res.status(400).json({ message: "Field username wajib diisi." });
+	const normalizedUser = normalizeUserPayload(incoming);
+	if (!normalizedUser) {
+		res.status(400).json({ message: "Field username dan password wajib diisi." });
 		return;
 	}
+
+	const username = normalizedUser.username;
 
 	const store = await readStore();
 	const duplicate = store.users.some((item) => normalizeKey(item?.username) === normalizeKey(username));
@@ -553,9 +595,9 @@ app.post("/api/users", async (req, res) => {
 		return;
 	}
 
-	store.users.push(incoming);
+	store.users.push(normalizedUser);
 	await writeStore(store);
-	res.status(201).json({ message: "User berhasil dibuat.", data: incoming, count: store.users.length });
+	res.status(201).json({ message: "User berhasil dibuat.", data: normalizedUser, count: store.users.length });
 });
 
 app.put("/api/users/:username", async (req, res) => {
@@ -574,7 +616,13 @@ app.put("/api/users/:username", async (req, res) => {
 	}
 
 	const existing = store.users[index] || {};
-	const updated = { ...existing, ...incoming, username: existing.username || username };
+	const updated = normalizeUserPayload(incoming, existing);
+	if (!updated) {
+		res.status(400).json({ message: "Field username dan password wajib diisi." });
+		return;
+	}
+
+	updated.username = existing.username || username;
 	store.users[index] = updated;
 	await writeStore(store);
 	res.json({ message: "User berhasil diperbarui.", data: updated });
@@ -763,26 +811,26 @@ app.post("/api/auth/login", async (req, res) => {
 	}
 
 	const store = await readStore();
-	const managedAccount = store.users.find((item) => {
-		const itemUsername = String(item?.username || "").trim().toLowerCase();
-		const itemEmail = String(item?.alamatEmail || "").trim().toLowerCase();
-		return itemUsername === loginIdentifier || itemEmail === loginIdentifier;
-	});
+	const managedAccount = resolveManagedAccount(store.users, loginIdentifier);
+	const managedPassword = String(managedAccount?.password || managedAccount?.kataSandi || managedAccount?.pass || "");
 
-	if (!managedAccount || String(managedAccount.password || "") !== password) {
+	if (!managedAccount || managedPassword !== password) {
 		res.status(401).json({ message: "Username/email atau password tidak valid." });
 		return;
 	}
 
+	const managedRole = String(managedAccount.kategori || managedAccount.role || "User").trim() || "User";
+	const managedUsername = String(managedAccount.username || managedAccount.userName || managedAccount.user || "").trim();
+
 	const token = issueAuthToken({
-		username: managedAccount.username,
-		role: managedAccount.kategori,
+		username: managedUsername,
+		role: managedRole,
 	});
 
 	res.json({
 		data: {
-			username: managedAccount.username,
-			role: managedAccount.kategori,
+			username: managedUsername,
+			role: managedRole,
 			token,
 		},
 	});
