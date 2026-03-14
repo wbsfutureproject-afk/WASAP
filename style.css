@@ -302,19 +302,20 @@ button {
 }
 
 .kta-performance-table-wrap {
-	max-height: 420px;
+	max-height: 360px;
 	overflow-y: auto;
+	scrollbar-gutter: stable;
 }
 
 @media (max-width: 768px) {
 	.kta-performance-table-wrap {
-		max-height: 300px;
+		max-height: 280px;
 	}
 }
 
 @media (min-width: 1200px) {
 	.kta-performance-table-wrap {
-		max-height: 520px;
+		max-height: 440px;
 	}
 }
 
@@ -543,28 +544,20 @@ button {
 	color: var(--text);
 }
 
-.achievement-kta-table-filter {
-	display: flex;
-	flex-wrap: wrap;
-	gap: 8px;
-	margin-bottom: 12px;
-}
-
-.achievement-kta-table-btn {
-	width: auto;
-}
-
-.achievement-kta-table-btn.active {
-	background: var(--primary);
-	border-color: var(--primary);
-	color: #fff;
-}
-
 .achievement-stat-grid {
 	display: grid;
 	grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
 	gap: 10px;
 	margin-bottom: 12px;
+}
+
+.achievement-section .data-table {
+	font-size: 12px;
+}
+
+.achievement-section .data-table th,
+.achievement-section .data-table td {
+	padding: 8px 10px;
 }
 
 .achievement-stat-card {
