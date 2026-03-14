@@ -2834,11 +2834,11 @@ function renderDashboard(session) {
 			ktaSuccess.textContent = "";
 
 			await runWithButtonLoading(ktaSubmitBtn, "Menyimpan...", async () => {
-			await runWithFormControlsDisabled(ktaForm, async () => {
-
 			const formData = new FormData(ktaForm);
 			const fotoTemuanFiles = document.getElementById("ktaFotoTemuan").files || [];
 			const fotoPerbaikanFiles = document.getElementById("ktaFotoPerbaikan").files || [];
+
+			await runWithFormControlsDisabled(ktaForm, async () => {
 
 			const payload = {
 				noId: String(formData.get("noId") || "").trim(),
@@ -3421,11 +3421,11 @@ function renderDashboard(session) {
 			ttaSuccess.textContent = "";
 
 			await runWithButtonLoading(ttaSubmitBtn, "Menyimpan...", async () => {
-			await runWithFormControlsDisabled(ttaForm, async () => {
-
 			const formData = new FormData(ttaForm);
 			const fotoTemuanFiles = document.getElementById("ttaFotoTemuan").files || [];
 			const fotoPerbaikanFiles = document.getElementById("ttaFotoPerbaikan").files || [];
+
+			await runWithFormControlsDisabled(ttaForm, async () => {
 
 			const payload = {
 				noId: String(formData.get("noId") || "").trim(),
