@@ -3852,7 +3852,6 @@ function renderDashboard(session) {
 			userError.textContent = "";
 
 			await runWithButtonLoading(saveUserBtn, "Menyimpan...", async () => {
-				await runWithFormControlsDisabled(userForm, async () => {
 				const userData = getFormData();
 				const validationError = validateUserData(userData);
 				if (validationError) {
@@ -3860,6 +3859,7 @@ function renderDashboard(session) {
 					return;
 				}
 
+				await runWithFormControlsDisabled(userForm, async () => {
 				if (editIndex >= 0) {
 					const targetUsername = editUsernameKey || userData.username;
 					const updateResult = await updateManagedUser(targetUsername, userData);
