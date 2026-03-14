@@ -186,22 +186,42 @@ function isOriginAllowed(requestOrigin) {
 		return false;
 	}
 
+	let requestHost = "";
+	try {
+		requestHost = new URL(requestOrigin).hostname.toLowerCase();
+	} catch (error) {
+		return false;
+	}
+
 	return allowedOrigins.some((allowedOrigin) => {
 		if (allowedOrigin === requestOrigin) {
 			return true;
 		}
 
-		if (!allowedOrigin.startsWith("*.")) {
+		let allowedHost = "";
+		try {
+			const normalizedAllowedOrigin = /^https?:\/\/\*\./i.test(allowedOrigin)
+				? allowedOrigin.replace(/^https?:\/\/\*\./i, "https://")
+				: allowedOrigin;
+			allowedHost = new URL(normalizedAllowedOrigin).hostname.toLowerCase();
+
+			if (allowedHost.endsWith(".vercel.app") && requestHost.endsWith(".vercel.app")) {
+				return true;
+			}
+		} catch (error) {
+		}
+
+		const wildcardMatch = allowedOrigin.match(/^(?:https?:\/\/)?\*\.(.+)$/i);
+		if (!wildcardMatch) {
 			return false;
 		}
 
-		const wildcardHost = allowedOrigin.slice(2).toLowerCase();
-		try {
-			const requestHost = new URL(requestOrigin).hostname.toLowerCase();
-			return requestHost === wildcardHost || requestHost.endsWith(`.${wildcardHost}`);
-		} catch (error) {
+		const wildcardHost = String(wildcardMatch[1] || "").toLowerCase();
+		if (!wildcardHost) {
 			return false;
 		}
+
+		return requestHost === wildcardHost || requestHost.endsWith(`.${wildcardHost}`);
 	});
 }
 
