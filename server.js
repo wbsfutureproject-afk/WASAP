@@ -177,6 +177,34 @@ function normalizeKey(value) {
 	return String(value || "").trim().toLowerCase();
 }
 
+function isOriginAllowed(requestOrigin) {
+	if (allowedOrigins.length === 0) {
+		return true;
+	}
+
+	if (!requestOrigin) {
+		return false;
+	}
+
+	return allowedOrigins.some((allowedOrigin) => {
+		if (allowedOrigin === requestOrigin) {
+			return true;
+		}
+
+		if (!allowedOrigin.startsWith("*.")) {
+			return false;
+		}
+
+		const wildcardHost = allowedOrigin.slice(2).toLowerCase();
+		try {
+			const requestHost = new URL(requestOrigin).hostname.toLowerCase();
+			return requestHost === wildcardHost || requestHost.endsWith(`.${wildcardHost}`);
+		} catch (error) {
+			return false;
+		}
+	});
+}
+
 function getBodyObject(body) {
 	const payload = body?.data ?? body;
 	if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
@@ -262,7 +290,7 @@ app.use((req, res, next) => {
 
 	const requestOrigin = req.headers.origin;
 	const hasSpecificOrigins = allowedOrigins.length > 0;
-	const isAllowedOrigin = !hasSpecificOrigins || (requestOrigin && allowedOrigins.includes(requestOrigin));
+	const isAllowedOrigin = !hasSpecificOrigins || isOriginAllowed(requestOrigin);
 
 	if (isAllowedOrigin) {
 		if (hasSpecificOrigins && requestOrigin) {

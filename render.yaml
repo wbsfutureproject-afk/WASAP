@@ -23,7 +23,7 @@ services:
       - key: STORAGE_FILE_PATH
         value: /var/data/storage.json
       - key: CORS_ALLOWED_ORIGINS
-        value: https://wasap-kappa.vercel.app
+        value: https://wasap-kappa.vercel.app,https://*.vercel.app
     disk:
       name: wbs-data
       mountPath: /var/data
