@@ -2460,8 +2460,6 @@ function renderDashboard(session) {
 		let activeDashboard = "KTA";
 		let activeKtaFilter = null;
 		let activeTtaFilter = null;
-		let ktaTableFilter = "all";
-		let ttaTableFilter = "all";
 		let dateRangeStart = "";
 		let dateRangeEnd = "";
 
@@ -2517,17 +2515,13 @@ function renderDashboard(session) {
 						${renderJobGroupShortageTable(rangedKtaRecords, rangedTtaRecords, dateRangeStart, dateRangeEnd)}
 					</div>
 				</section>
-				${
-					ktaTableFilter === "all" || ktaTableFilter === "daily"
-						? `<section class="achievement-section">
-							<h3>Pencapaian Pembuatan KTA per Pelapor (Date Range)</h3>
-							<p class="subtitle">Menampilkan target, pencapaian, persentase, dan status Kelompok Jabatan PENGAWAS dan LEVEL 1 MGT pada Dashboard KTA berdasarkan date range aktif.</p>
-							<div class="table-wrap kta-performance-table-wrap">
-								${renderKtaReporterDateRangeAchievementTable(rangedKtaRecords, dateRangeStart, dateRangeEnd)}
-							</div>
-						</section>`
-						: ""
-				}
+				<section class="achievement-section">
+					<h3>Pencapaian Pembuatan KTA per Pelapor (Date Range)</h3>
+					<p class="subtitle">Menampilkan target, pencapaian, persentase, dan status Kelompok Jabatan PENGAWAS dan LEVEL 1 MGT pada Dashboard KTA berdasarkan date range aktif.</p>
+					<div class="table-wrap kta-performance-table-wrap">
+						${renderKtaReporterDateRangeAchievementTable(rangedKtaRecords, dateRangeStart, dateRangeEnd)}
+					</div>
+				</section>
 			`;
 
 			const ttaDashboardHtml = `
@@ -2568,17 +2562,13 @@ function renderDashboard(session) {
 						${renderJobGroupShortageTable(rangedKtaRecords, rangedTtaRecords, dateRangeStart, dateRangeEnd)}
 					</div>
 				</section>
-				${
-					ttaTableFilter === "all" || ttaTableFilter === "daily"
-						? `<section class="achievement-section">
-							<h3>Pencapaian Pembuatan TTA per Pelapor (Date Range)</h3>
-							<p class="subtitle">Menampilkan target, pencapaian, persentase, dan status Kelompok Jabatan PENGAWAS dan LEVEL 1 MGT pada Dashboard TTA berdasarkan date range aktif.</p>
-							<div class="table-wrap kta-performance-table-wrap">
-								${renderTtaReporterDateRangeAchievementTable(rangedTtaRecords, dateRangeStart, dateRangeEnd)}
-							</div>
-						</section>`
-						: ""
-				}
+				<section class="achievement-section">
+					<h3>Pencapaian Pembuatan TTA per Pelapor (Date Range)</h3>
+					<p class="subtitle">Menampilkan target, pencapaian, persentase, dan status Kelompok Jabatan PENGAWAS dan LEVEL 1 MGT pada Dashboard TTA berdasarkan date range aktif.</p>
+					<div class="table-wrap kta-performance-table-wrap">
+						${renderTtaReporterDateRangeAchievementTable(rangedTtaRecords, dateRangeStart, dateRangeEnd)}
+					</div>
+				</section>
 			`;
 
 			contentArea.innerHTML = `
@@ -2608,21 +2598,6 @@ function renderDashboard(session) {
 					<p><strong>Rentang Tanggal:</strong> ${escapeAchievementHtml(dateFilterText)}</p>
 					<button type="button" class="btn-small" id="achievementResetFilter">Reset Filter</button>
 				</div>
-				${
-					activeDashboard === "KTA"
-						? `<div class="achievement-kta-table-filter">
-							<button type="button" class="btn-small achievement-kta-table-btn ${ktaTableFilter === "all" ? "active" : ""}" data-kta-table-filter="all">Semua Tabel KTA</button>
-							<button type="button" class="btn-small achievement-kta-table-btn ${ktaTableFilter === "daily" ? "active" : ""}" data-kta-table-filter="daily">Per Tanggal</button>
-							<button type="button" class="btn-small achievement-kta-table-btn ${ktaTableFilter === "hidden" ? "active" : ""}" data-kta-table-filter="hidden">Sembunyikan</button>
-						</div>`
-						: activeDashboard === "TTA"
-							? `<div class="achievement-kta-table-filter">
-								<button type="button" class="btn-small achievement-kta-table-btn ${ttaTableFilter === "all" ? "active" : ""}" data-tta-table-filter="all">Semua Tabel TTA</button>
-								<button type="button" class="btn-small achievement-kta-table-btn ${ttaTableFilter === "daily" ? "active" : ""}" data-tta-table-filter="daily">Per Tanggal</button>
-								<button type="button" class="btn-small achievement-kta-table-btn ${ttaTableFilter === "hidden" ? "active" : ""}" data-tta-table-filter="hidden">Sembunyikan</button>
-							</div>`
-							: ""
-				}
 				${activeDashboard === "KTA" ? ktaDashboardHtml : ttaDashboardHtml}
 			`;
 
@@ -2695,21 +2670,6 @@ function renderDashboard(session) {
 				});
 			});
 
-			const ktaTableFilterButtons = contentArea.querySelectorAll("[data-kta-table-filter]");
-			ktaTableFilterButtons.forEach((button) => {
-				button.addEventListener("click", () => {
-					ktaTableFilter = String(button.dataset.ktaTableFilter || "all");
-					renderAdminAchievementView();
-				});
-			});
-
-			const ttaTableFilterButtons = contentArea.querySelectorAll("[data-tta-table-filter]");
-			ttaTableFilterButtons.forEach((button) => {
-				button.addEventListener("click", () => {
-					ttaTableFilter = String(button.dataset.ttaTableFilter || "all");
-					renderAdminAchievementView();
-				});
-			});
 		};
 
 		renderAdminAchievementView();
