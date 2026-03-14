@@ -2503,17 +2503,6 @@ function renderDashboard(session) {
 						${renderAchievementKtaTable(ktaRecords)}
 					</div>
 				</section>
-				${
-					ktaTableFilter === "all" || ktaTableFilter === "summary"
-						? `<section class="achievement-section">
-							<h3>Target dan Pencapaian KTA per Pelapor</h3>
-							<p class="subtitle">Perhitungan bulan berjalan dan tahun berjalan berdasarkan Kelompok Jabatan pada Daftar User.</p>
-							<div class="table-wrap kta-performance-table-wrap">
-								${renderKtaReporterPerformanceTable(allKtaRecords)}
-							</div>
-						</section>`
-						: ""
-				}
 				<section class="achievement-section">
 					<h3>Target dan Pencapaian Gabungan KTA / TTA (OPERATOR)</h3>
 					<p class="subtitle">Menampilkan Kelompok Jabatan OPERATOR dengan target 3 per minggu. Total target otomatis mengikuti date range aktif.</p>
@@ -2565,17 +2554,6 @@ function renderDashboard(session) {
 						${renderAchievementTtaTable(ttaRecords)}
 					</div>
 				</section>
-				${
-					ttaTableFilter === "all" || ttaTableFilter === "summary"
-						? `<section class="achievement-section">
-							<h3>Target dan Pencapaian TTA per Pelapor</h3>
-							<p class="subtitle">Perhitungan bulan berjalan dan tahun berjalan untuk Kelompok Jabatan PENGAWAS dan LEVEL 1 MGT.</p>
-							<div class="table-wrap kta-performance-table-wrap">
-								${renderTtaReporterPerformanceTable(allTtaRecords)}
-							</div>
-						</section>`
-						: ""
-				}
 				<section class="achievement-section">
 					<h3>Target dan Pencapaian Gabungan KTA / TTA (OPERATOR)</h3>
 					<p class="subtitle">Menampilkan Kelompok Jabatan OPERATOR dengan target 3 per minggu. Total target otomatis mengikuti date range aktif.</p>
@@ -2634,14 +2612,12 @@ function renderDashboard(session) {
 					activeDashboard === "KTA"
 						? `<div class="achievement-kta-table-filter">
 							<button type="button" class="btn-small achievement-kta-table-btn ${ktaTableFilter === "all" ? "active" : ""}" data-kta-table-filter="all">Semua Tabel KTA</button>
-							<button type="button" class="btn-small achievement-kta-table-btn ${ktaTableFilter === "summary" ? "active" : ""}" data-kta-table-filter="summary">Bulanan & Tahunan</button>
 							<button type="button" class="btn-small achievement-kta-table-btn ${ktaTableFilter === "daily" ? "active" : ""}" data-kta-table-filter="daily">Per Tanggal</button>
 							<button type="button" class="btn-small achievement-kta-table-btn ${ktaTableFilter === "hidden" ? "active" : ""}" data-kta-table-filter="hidden">Sembunyikan</button>
 						</div>`
 						: activeDashboard === "TTA"
 							? `<div class="achievement-kta-table-filter">
 								<button type="button" class="btn-small achievement-kta-table-btn ${ttaTableFilter === "all" ? "active" : ""}" data-tta-table-filter="all">Semua Tabel TTA</button>
-								<button type="button" class="btn-small achievement-kta-table-btn ${ttaTableFilter === "summary" ? "active" : ""}" data-tta-table-filter="summary">Bulanan & Tahunan</button>
 								<button type="button" class="btn-small achievement-kta-table-btn ${ttaTableFilter === "daily" ? "active" : ""}" data-tta-table-filter="daily">Per Tanggal</button>
 								<button type="button" class="btn-small achievement-kta-table-btn ${ttaTableFilter === "hidden" ? "active" : ""}" data-tta-table-filter="hidden">Sembunyikan</button>
 							</div>`
