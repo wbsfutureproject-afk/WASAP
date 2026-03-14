@@ -24,6 +24,10 @@
       "dest": "/script.js"
     },
     {
+      "src": "/api/(.*)",
+      "dest": "https://wasap-5pzb.onrender.com/api/$1"
+    },
+    {
       "src": "/(.*)",
       "dest": "/index.html"
     }
