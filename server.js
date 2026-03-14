@@ -299,8 +299,8 @@ app.use(helmet({
 	contentSecurityPolicy: false,
 }));
 app.use(compression());
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: "15mb" }));
+app.use(express.urlencoded({ extended: true, limit: "15mb" }));
 
 app.use((req, res, next) => {
 	if (!req.path.startsWith("/api/")) {
