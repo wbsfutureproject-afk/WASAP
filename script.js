@@ -1381,6 +1381,38 @@ function renderDashboard(session) {
 		return Math.max(1, Math.ceil(diffInDays / 7));
 	}
 
+	function getAchievementDaySpan(startDate, endDate) {
+		if (!/^\d{4}-\d{2}-\d{2}$/.test(startDate) || !/^\d{4}-\d{2}-\d{2}$/.test(endDate)) {
+			return 1;
+		}
+
+		const [startYear, startMonth, startDay] = startDate.split("-").map(Number);
+		const [endYear, endMonth, endDay] = endDate.split("-").map(Number);
+		const startUtc = Date.UTC(startYear, startMonth - 1, startDay);
+		const endUtc = Date.UTC(endYear, endMonth - 1, endDay);
+		const diffInDays = Math.floor((endUtc - startUtc) / 86400000) + 1;
+
+		if (diffInDays <= 0) {
+			return 1;
+		}
+
+		return diffInDays;
+	}
+
+	function getAchievementPercentage(achievement, target) {
+		const safeTarget = Number(target) || 0;
+		const safeAchievement = Number(achievement) || 0;
+		if (safeTarget <= 0) {
+			return 0;
+		}
+
+		return (safeAchievement / safeTarget) * 100;
+	}
+
+	function formatAchievementPercentage(achievement, target) {
+		return `${getAchievementPercentage(achievement, target).toFixed(2)}%`;
+	}
+
 	function getAchievementStatusSummary(records) {
 		let openCount = 0;
 		let progressCount = 0;
@@ -1603,6 +1635,21 @@ function renderDashboard(session) {
 			.trim()
 			.toUpperCase()
 			.replace(/\s+/g, " ");
+	}
+
+	function isRecordOwnedByReporter(record, normalizedReporterName, normalizedUsername) {
+		const recordReporterRaw = String(record?.namaPelapor || "").trim();
+		const recordReporterFullName = String(getUserFullNameFromIdentifier(recordReporterRaw) || "")
+			.trim()
+			.toLowerCase();
+		const recordReporter = recordReporterRaw.toLowerCase();
+
+		return (
+			recordReporter === normalizedReporterName ||
+			recordReporter === normalizedUsername ||
+			recordReporterFullName === normalizedReporterName ||
+			recordReporterFullName === normalizedUsername
+		);
 	}
 
 	function getKtaTargetMultiplierByJobGroup(jobGroup) {
@@ -1953,19 +2000,7 @@ function renderDashboard(session) {
 				let activeRangeAchievement = 0;
 
 				combinedRecords.forEach((record) => {
-					const recordReporterRaw = String(record.namaPelapor || "").trim();
-					const recordReporterFullName = String(getUserFullNameFromIdentifier(recordReporterRaw) || "")
-						.trim()
-						.toLowerCase();
-					const recordReporter = recordReporterRaw.toLowerCase();
-
-					const isSameReporter =
-						recordReporter === normalizedReporterName ||
-						recordReporter === normalizedUsername ||
-						recordReporterFullName === normalizedReporterName ||
-						recordReporterFullName === normalizedUsername;
-
-					if (!isSameReporter) {
+					if (!isRecordOwnedByReporter(record, normalizedReporterName, normalizedUsername)) {
 						return;
 					}
 
@@ -1979,6 +2014,7 @@ function renderDashboard(session) {
 					activeWeekCount,
 					activeRangeTarget,
 					activeRangeAchievement,
+					achievementPercentage: getAchievementPercentage(activeRangeAchievement, activeRangeTarget),
 					isAchieved: activeRangeAchievement >= activeRangeTarget,
 				};
 			})
@@ -1999,6 +2035,7 @@ function renderDashboard(session) {
 						<td>${item.activeWeekCount}</td>
 						<td>${item.activeRangeTarget}</td>
 						<td>${item.activeRangeAchievement}</td>
+						<td>${item.achievementPercentage.toFixed(2)}%</td>
 						<td><span class="task-status ${item.isAchieved ? "task-status-close" : "task-status-open"}">${item.isAchieved ? "Tercapai" : "Tidak Tercapai"}</span></td>
 					</tr>
 				`,
@@ -2028,6 +2065,7 @@ function renderDashboard(session) {
 						<th>Jumlah Minggu Aktif</th>
 						<th>Target Date Range Aktif</th>
 						<th>Pencapaian Date Range Aktif</th>
+						<th>% Pencapaian</th>
 						<th>Status</th>
 					</tr>
 				</thead>
@@ -2040,6 +2078,7 @@ function renderDashboard(session) {
 						<th>${activeWeekCount}</th>
 						<th>${totals.activeRangeTarget}</th>
 						<th>${totals.activeRangeAchievement}</th>
+						<th>${formatAchievementPercentage(totals.activeRangeAchievement, totals.activeRangeTarget)}</th>
 						<th><span class="task-status ${totalStatusClass}">${totalStatus}</span></th>
 					</tr>
 				</tfoot>
@@ -2047,12 +2086,147 @@ function renderDashboard(session) {
 		`;
 	}
 
-	function renderKtaReporterDateRangeAchievementTable(records) {
+	function renderJobGroupShortageTable(ktaRecords, ttaRecords, startDate, endDate) {
+		const users = getManagedUsers();
+		if (users.length === 0) {
+			return '<p class="subtitle">Daftar User belum tersedia untuk menghitung kekurangan target per kelompok jabatan.</p>';
+		}
+
+		const combinedRecords = [...ktaRecords, ...ttaRecords];
+		const activeRange = resolveAchievementActiveDateRange(combinedRecords, startDate, endDate);
+		const activeWeekCount = getAchievementWeekSpan(activeRange.start, activeRange.end);
+		const activeDayCount = getAchievementDaySpan(activeRange.start, activeRange.end);
+
+		const groupOrder = ["OPERATOR", "PENGAWAS", "LEVEL 1 MGT"];
+		const groupTargetBasis = {
+			OPERATOR: "3 / minggu (gabungan KTA+TTA)",
+			PENGAWAS: "KTA 1 + TTA 2 / hari",
+			"LEVEL 1 MGT": "KTA 1 + TTA 2 / hari",
+		};
+
+		const grouped = new Map(groupOrder.map((group) => [group, { group, personCount: 0, target: 0, achievement: 0 }]));
+
+		users.forEach((user) => {
+			const normalizedGroup = normalizeJobGroup(user.kelompokJabatan);
+			if (!grouped.has(normalizedGroup)) {
+				return;
+			}
+
+			const reporterName = String(user.namaLengkap || user.username || "-").trim() || "-";
+			const username = String(user.username || "").trim();
+			const normalizedReporterName = reporterName.toLowerCase();
+			const normalizedUsername = username.toLowerCase();
+
+			const ktaAchievement = ktaRecords.reduce(
+				(accumulator, record) =>
+					accumulator + (isRecordOwnedByReporter(record, normalizedReporterName, normalizedUsername) ? 1 : 0),
+				0,
+			);
+			const ttaAchievement = ttaRecords.reduce(
+				(accumulator, record) =>
+					accumulator + (isRecordOwnedByReporter(record, normalizedReporterName, normalizedUsername) ? 1 : 0),
+				0,
+			);
+
+			const perUserTarget = normalizedGroup === "OPERATOR" ? 3 * activeWeekCount : 3 * activeDayCount;
+
+			const groupData = grouped.get(normalizedGroup);
+			groupData.personCount += 1;
+			groupData.target += perUserTarget;
+			groupData.achievement += ktaAchievement + ttaAchievement;
+		});
+
+		const rows = groupOrder
+			.map((group) => {
+				const item = grouped.get(group);
+				const shortage = Math.max(0, item.target - item.achievement);
+				const isAchieved = item.achievement >= item.target;
+
+				return {
+					...item,
+					targetBasis: groupTargetBasis[group],
+					shortage,
+					isAchieved,
+				};
+			})
+			.filter((item) => item.personCount > 0);
+
+		if (rows.length === 0) {
+			return '<p class="subtitle">Tidak ada data user pada kelompok jabatan target (OPERATOR, PENGAWAS, LEVEL 1 MGT).</p>';
+		}
+
+		const rowHtml = rows
+			.map(
+				(item) => `
+					<tr>
+						<td>${escapeAchievementHtml(item.group)}</td>
+						<td>${item.personCount}</td>
+						<td>${escapeAchievementHtml(item.targetBasis)}</td>
+						<td>${item.target}</td>
+						<td>${item.achievement}</td>
+						<td>${item.shortage}</td>
+						<td>${formatAchievementPercentage(item.achievement, item.target)}</td>
+						<td><span class="task-status ${item.isAchieved ? "task-status-close" : "task-status-open"}">${item.isAchieved ? "Tercapai" : "Tidak Tercapai"}</span></td>
+					</tr>
+				`,
+			)
+			.join("");
+
+		const totals = rows.reduce(
+			(accumulator, item) => {
+				accumulator.personCount += item.personCount;
+				accumulator.target += item.target;
+				accumulator.achievement += item.achievement;
+				accumulator.shortage += item.shortage;
+				return accumulator;
+			},
+			{ personCount: 0, target: 0, achievement: 0, shortage: 0 },
+		);
+
+		const totalAchieved = totals.achievement >= totals.target;
+
+		return `
+			<table class="data-table">
+				<thead>
+					<tr>
+						<th>Kelompok Jabatan</th>
+						<th>Jumlah Personel</th>
+						<th>Dasar Target</th>
+						<th>Target Date Range Aktif</th>
+						<th>Pencapaian KTA / TTA</th>
+						<th>Kekurangan</th>
+						<th>% Pencapaian</th>
+						<th>Status</th>
+					</tr>
+				</thead>
+				<tbody>${rowHtml}</tbody>
+				<tfoot>
+					<tr>
+						<th>Total</th>
+						<th>${totals.personCount}</th>
+						<th>-</th>
+						<th>${totals.target}</th>
+						<th>${totals.achievement}</th>
+						<th>${totals.shortage}</th>
+						<th>${formatAchievementPercentage(totals.achievement, totals.target)}</th>
+						<th><span class="task-status ${totalAchieved ? "task-status-close" : "task-status-open"}">${
+							totalAchieved ? "Tercapai" : "Tidak Tercapai"
+						}</span></th>
+					</tr>
+				</tfoot>
+			</table>
+		`;
+	}
+
+	function renderKtaReporterDateRangeAchievementTable(records, startDate, endDate) {
 		const users = getManagedUsers();
 		if (users.length === 0) {
 			return '<p class="subtitle">Daftar User belum tersedia untuk menghitung pencapaian KTA berdasarkan rentang tanggal.</p>';
 		}
 
+		const activeRange = resolveAchievementActiveDateRange(records, startDate, endDate);
+		const targetPerReporter = getAchievementDaySpan(activeRange.start, activeRange.end);
+
 		const rows = users
 			.map((user) => {
 				const reporterName = String(user.namaLengkap || user.username || "-").trim() || "-";
@@ -2061,7 +2235,6 @@ function renderDashboard(session) {
 				const normalizedUsername = username.toLowerCase();
 				const normalizedGroup = normalizeJobGroup(user.kelompokJabatan);
 
-				const perDateCount = {};
 				let achievementCount = 0;
 
 				records.forEach((record) => {
@@ -2070,35 +2243,23 @@ function renderDashboard(session) {
 						return;
 					}
 
-					const recordReporterRaw = String(record.namaPelapor || "").trim();
-					const recordReporterFullName = String(getUserFullNameFromIdentifier(recordReporterRaw) || "")
-						.trim()
-						.toLowerCase();
-					const recordReporter = recordReporterRaw.toLowerCase();
-
-					const isSameReporter =
-						recordReporter === normalizedReporterName ||
-						recordReporter === normalizedUsername ||
-						recordReporterFullName === normalizedReporterName ||
-						recordReporterFullName === normalizedUsername;
-
-					if (!isSameReporter) {
+					if (!isRecordOwnedByReporter(record, normalizedReporterName, normalizedUsername)) {
 						return;
 					}
 
 					achievementCount += 1;
-					perDateCount[reportDate] = (perDateCount[reportDate] || 0) + 1;
 				});
 
-				const dateCounts = Object.values(perDateCount);
-				const hasLessThanOnePerDate = dateCounts.length === 0 || dateCounts.some((count) => count < 1);
+				const shortage = Math.max(0, targetPerReporter - achievementCount);
+				const isAchieved = achievementCount >= targetPerReporter;
 
 				return {
 					reporterName,
 					jobGroup: normalizedGroup || "-",
+					targetCount: targetPerReporter,
 					achievementCount,
-					hasLessThanOnePerDate,
-					isAchieved: !hasLessThanOnePerDate,
+					shortage,
+					isAchieved,
 				};
 			})
 			.filter((item) => item.jobGroup === "PENGAWAS" || item.jobGroup === "LEVEL 1 MGT")
@@ -2112,18 +2273,29 @@ function renderDashboard(session) {
 			.map(
 				(item) => `
 					<tr>
-						<td class="${item.hasLessThanOnePerDate ? "reporter-low-achievement" : ""}">${escapeAchievementHtml(item.reporterName)}</td>
+						<td class="${item.isAchieved ? "" : "reporter-low-achievement"}">${escapeAchievementHtml(item.reporterName)}</td>
 						<td>${escapeAchievementHtml(item.jobGroup)}</td>
+						<td>${item.targetCount}</td>
 						<td>${item.achievementCount}</td>
+						<td>${item.shortage}</td>
+						<td>${formatAchievementPercentage(item.achievementCount, item.targetCount)}</td>
 						<td><span class="task-status ${item.isAchieved ? "task-status-close" : "task-status-open"}">${item.isAchieved ? "Tercapai" : "Tidak Tercapai"}</span></td>
 					</tr>
 				`,
 			)
 			.join("");
 
-		const totalAchievement = rows.reduce((accumulator, item) => accumulator + item.achievementCount, 0);
-		const totalStatus = rows.every((item) => item.isAchieved) ? "Tercapai" : "Tidak Tercapai";
-		const totalStatusClass = rows.every((item) => item.isAchieved) ? "task-status-close" : "task-status-open";
+		const totals = rows.reduce(
+			(accumulator, item) => {
+				accumulator.targetCount += item.targetCount;
+				accumulator.achievementCount += item.achievementCount;
+				accumulator.shortage += item.shortage;
+				return accumulator;
+			},
+			{ targetCount: 0, achievementCount: 0, shortage: 0 },
+		);
+		const totalStatus = totals.achievementCount >= totals.targetCount ? "Tercapai" : "Tidak Tercapai";
+		const totalStatusClass = totals.achievementCount >= totals.targetCount ? "task-status-close" : "task-status-open";
 
 		return `
 			<table class="data-table">
@@ -2131,7 +2303,10 @@ function renderDashboard(session) {
 					<tr>
 						<th>Nama Pelapor</th>
 						<th>Kelompok Jabatan</th>
+						<th>Target KTA (Date Range Aktif)</th>
 						<th>Pencapaian KTA (Date Range Aktif)</th>
+						<th>Kekurangan</th>
+						<th>% Pencapaian</th>
 						<th>Status</th>
 					</tr>
 				</thead>
@@ -2140,7 +2315,10 @@ function renderDashboard(session) {
 					<tr>
 						<th>Total</th>
 						<th>-</th>
-						<th>${totalAchievement}</th>
+						<th>${totals.targetCount}</th>
+						<th>${totals.achievementCount}</th>
+						<th>${totals.shortage}</th>
+						<th>${formatAchievementPercentage(totals.achievementCount, totals.targetCount)}</th>
 						<th><span class="task-status ${totalStatusClass}">${totalStatus}</span></th>
 					</tr>
 				</tfoot>
@@ -2148,11 +2326,14 @@ function renderDashboard(session) {
 		`;
 	}
 
-	function renderTtaReporterDateRangeAchievementTable(records) {
+	function renderTtaReporterDateRangeAchievementTable(records, startDate, endDate) {
 		const users = getManagedUsers();
 		if (users.length === 0) {
 			return '<p class="subtitle">Daftar User belum tersedia untuk menghitung pencapaian TTA berdasarkan rentang tanggal.</p>';
 		}
+
+		const activeRange = resolveAchievementActiveDateRange(records, startDate, endDate);
+		const targetPerReporter = getAchievementDaySpan(activeRange.start, activeRange.end) * 2;
 
 		const rows = users
 			.map((user) => {
@@ -2162,7 +2343,6 @@ function renderDashboard(session) {
 				const normalizedUsername = username.toLowerCase();
 				const normalizedGroup = normalizeJobGroup(user.kelompokJabatan);
 
-				const perDateCount = {};
 				let achievementCount = 0;
 
 				records.forEach((record) => {
@@ -2171,35 +2351,23 @@ function renderDashboard(session) {
 						return;
 					}
 
-					const recordReporterRaw = String(record.namaPelapor || "").trim();
-					const recordReporterFullName = String(getUserFullNameFromIdentifier(recordReporterRaw) || "")
-						.trim()
-						.toLowerCase();
-					const recordReporter = recordReporterRaw.toLowerCase();
-
-					const isSameReporter =
-						recordReporter === normalizedReporterName ||
-						recordReporter === normalizedUsername ||
-						recordReporterFullName === normalizedReporterName ||
-						recordReporterFullName === normalizedUsername;
-
-					if (!isSameReporter) {
+					if (!isRecordOwnedByReporter(record, normalizedReporterName, normalizedUsername)) {
 						return;
 					}
 
 					achievementCount += 1;
-					perDateCount[reportDate] = (perDateCount[reportDate] || 0) + 1;
 				});
 
-				const dateCounts = Object.values(perDateCount);
-				const hasLessThanTwoPerDate = dateCounts.length === 0 || dateCounts.some((count) => count < 2);
+				const shortage = Math.max(0, targetPerReporter - achievementCount);
+				const isAchieved = achievementCount >= targetPerReporter;
 
 				return {
 					reporterName,
 					jobGroup: normalizedGroup || "-",
+					targetCount: targetPerReporter,
 					achievementCount,
-					hasLessThanTwoPerDate,
-					isAchieved: !hasLessThanTwoPerDate,
+					shortage,
+					isAchieved,
 				};
 			})
 			.filter((item) => item.jobGroup === "PENGAWAS" || item.jobGroup === "LEVEL 1 MGT")
@@ -2213,18 +2381,29 @@ function renderDashboard(session) {
 			.map(
 				(item) => `
 					<tr>
-						<td class="${item.hasLessThanTwoPerDate ? "reporter-low-achievement" : ""}">${escapeAchievementHtml(item.reporterName)}</td>
+						<td class="${item.isAchieved ? "" : "reporter-low-achievement"}">${escapeAchievementHtml(item.reporterName)}</td>
 						<td>${escapeAchievementHtml(item.jobGroup)}</td>
+						<td>${item.targetCount}</td>
 						<td>${item.achievementCount}</td>
+						<td>${item.shortage}</td>
+						<td>${formatAchievementPercentage(item.achievementCount, item.targetCount)}</td>
 						<td><span class="task-status ${item.isAchieved ? "task-status-close" : "task-status-open"}">${item.isAchieved ? "Tercapai" : "Tidak Tercapai"}</span></td>
 					</tr>
 				`,
 			)
 			.join("");
 
-		const totalAchievement = rows.reduce((accumulator, item) => accumulator + item.achievementCount, 0);
-		const totalStatus = rows.every((item) => item.isAchieved) ? "Tercapai" : "Tidak Tercapai";
-		const totalStatusClass = rows.every((item) => item.isAchieved) ? "task-status-close" : "task-status-open";
+		const totals = rows.reduce(
+			(accumulator, item) => {
+				accumulator.targetCount += item.targetCount;
+				accumulator.achievementCount += item.achievementCount;
+				accumulator.shortage += item.shortage;
+				return accumulator;
+			},
+			{ targetCount: 0, achievementCount: 0, shortage: 0 },
+		);
+		const totalStatus = totals.achievementCount >= totals.targetCount ? "Tercapai" : "Tidak Tercapai";
+		const totalStatusClass = totals.achievementCount >= totals.targetCount ? "task-status-close" : "task-status-open";
 
 		return `
 			<table class="data-table">
@@ -2232,7 +2411,10 @@ function renderDashboard(session) {
 					<tr>
 						<th>Nama Pelapor</th>
 						<th>Kelompok Jabatan</th>
+						<th>Target TTA (Date Range Aktif)</th>
 						<th>Pencapaian TTA (Date Range Aktif)</th>
+						<th>Kekurangan</th>
+						<th>% Pencapaian</th>
 						<th>Status</th>
 					</tr>
 				</thead>
@@ -2241,7 +2423,10 @@ function renderDashboard(session) {
 					<tr>
 						<th>Total</th>
 						<th>-</th>
-						<th>${totalAchievement}</th>
+						<th>${totals.targetCount}</th>
+						<th>${totals.achievementCount}</th>
+						<th>${totals.shortage}</th>
+						<th>${formatAchievementPercentage(totals.achievementCount, totals.targetCount)}</th>
 						<th><span class="task-status ${totalStatusClass}">${totalStatus}</span></th>
 					</tr>
 				</tfoot>
@@ -2336,13 +2521,20 @@ function renderDashboard(session) {
 						${renderOperatorCombinedPerformanceTable(rangedKtaRecords, rangedTtaRecords, dateRangeStart, dateRangeEnd)}
 					</div>
 				</section>
+				<section class="achievement-section">
+					<h3>Jumlah Kekurangan Pembuatan KTA / TTA per Kelompok Jabatan</h3>
+					<p class="subtitle">Menampilkan target, pencapaian, persentase, dan jumlah kekurangan berdasarkan date range aktif untuk OPERATOR, PENGAWAS, dan LEVEL 1 MGT.</p>
+					<div class="table-wrap kta-performance-table-wrap">
+						${renderJobGroupShortageTable(rangedKtaRecords, rangedTtaRecords, dateRangeStart, dateRangeEnd)}
+					</div>
+				</section>
 				${
 					ktaTableFilter === "all" || ktaTableFilter === "daily"
 						? `<section class="achievement-section">
 							<h3>Pencapaian Pembuatan KTA per Pelapor (Date Range)</h3>
-							<p class="subtitle">Menampilkan Kelompok Jabatan PENGAWAS dan LEVEL 1 MGT berdasarkan date range aktif pada Dashboard KTA. Nama pelapor berwarna merah jika jumlah KTA per tanggal kurang dari 1.</p>
+							<p class="subtitle">Menampilkan target, pencapaian, persentase, dan status Kelompok Jabatan PENGAWAS dan LEVEL 1 MGT pada Dashboard KTA berdasarkan date range aktif.</p>
 							<div class="table-wrap kta-performance-table-wrap">
-								${renderKtaReporterDateRangeAchievementTable(rangedKtaRecords)}
+								${renderKtaReporterDateRangeAchievementTable(rangedKtaRecords, dateRangeStart, dateRangeEnd)}
 							</div>
 						</section>`
 						: ""
@@ -2391,13 +2583,20 @@ function renderDashboard(session) {
 						${renderOperatorCombinedPerformanceTable(rangedKtaRecords, rangedTtaRecords, dateRangeStart, dateRangeEnd)}
 					</div>
 				</section>
+				<section class="achievement-section">
+					<h3>Jumlah Kekurangan Pembuatan KTA / TTA per Kelompok Jabatan</h3>
+					<p class="subtitle">Menampilkan target, pencapaian, persentase, dan jumlah kekurangan berdasarkan date range aktif untuk OPERATOR, PENGAWAS, dan LEVEL 1 MGT.</p>
+					<div class="table-wrap kta-performance-table-wrap">
+						${renderJobGroupShortageTable(rangedKtaRecords, rangedTtaRecords, dateRangeStart, dateRangeEnd)}
+					</div>
+				</section>
 				${
 					ttaTableFilter === "all" || ttaTableFilter === "daily"
 						? `<section class="achievement-section">
 							<h3>Pencapaian Pembuatan TTA per Pelapor (Date Range)</h3>
-							<p class="subtitle">Menampilkan Kelompok Jabatan PENGAWAS dan LEVEL 1 MGT berdasarkan date range aktif pada Dashboard TTA. Nama pelapor berwarna merah jika jumlah TTA per tanggal kurang dari 2.</p>
+							<p class="subtitle">Menampilkan target, pencapaian, persentase, dan status Kelompok Jabatan PENGAWAS dan LEVEL 1 MGT pada Dashboard TTA berdasarkan date range aktif.</p>
 							<div class="table-wrap kta-performance-table-wrap">
-								${renderTtaReporterDateRangeAchievementTable(rangedTtaRecords)}
+								${renderTtaReporterDateRangeAchievementTable(rangedTtaRecords, dateRangeStart, dateRangeEnd)}
 							</div>
 						</section>`
 						: ""
