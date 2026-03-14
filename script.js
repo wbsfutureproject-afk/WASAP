@@ -785,25 +785,121 @@ function createTtaId() {
 	return `TTA - ${month}/${year} - ${runningNumber}`;
 }
 
+const IMAGE_COMPRESSION_MAX_DIMENSION = 1600;
+const IMAGE_COMPRESSION_TARGET_BYTES = 900 * 1024;
+const IMAGE_COMPRESSION_QUALITY_STEPS = [0.82, 0.72, 0.62, 0.52];
+const IMAGE_COMPRESSION_SCALE_STEPS = [1, 0.85, 0.7, 0.55];
+
+function fileToDataUrl(file) {
+	return new Promise((resolve) => {
+		const reader = new FileReader();
+		reader.onload = () => {
+			resolve(String(reader.result || ""));
+		};
+		reader.onerror = () => {
+			resolve("");
+		};
+		reader.readAsDataURL(file);
+	});
+}
+
+function estimateDataUrlBytes(dataUrl) {
+	const payload = String(dataUrl || "");
+	const commaIndex = payload.indexOf(",");
+	const base64 = commaIndex >= 0 ? payload.slice(commaIndex + 1) : payload;
+	const paddingLength = base64.endsWith("==") ? 2 : base64.endsWith("=") ? 1 : 0;
+	return Math.max(0, Math.floor((base64.length * 3) / 4) - paddingLength);
+}
+
+function loadImageFromDataUrl(dataUrl) {
+	return new Promise((resolve, reject) => {
+		const image = new Image();
+		image.onload = () => resolve(image);
+		image.onerror = () => reject(new Error("Gagal memuat gambar untuk kompresi."));
+		image.src = dataUrl;
+	});
+}
+
+async function compressImageFile(file) {
+	const originalDataUrl = await fileToDataUrl(file);
+	if (!String(file?.type || "").toLowerCase().startsWith("image/") || !originalDataUrl) {
+		return {
+			name: String(file?.name || "file"),
+			dataUrl: originalDataUrl,
+		};
+	}
+
+	try {
+		const image = await loadImageFromDataUrl(originalDataUrl);
+		const originalWidth = Number(image.naturalWidth || image.width || 0);
+		const originalHeight = Number(image.naturalHeight || image.height || 0);
+		if (!originalWidth || !originalHeight) {
+			return {
+				name: String(file.name || "file"),
+				dataUrl: originalDataUrl,
+			};
+		}
+
+		const baseScale = Math.min(1, IMAGE_COMPRESSION_MAX_DIMENSION / Math.max(originalWidth, originalHeight));
+		const canvas = document.createElement("canvas");
+		const context = canvas.getContext("2d");
+		if (!context) {
+			return {
+				name: String(file.name || "file"),
+				dataUrl: originalDataUrl,
+			};
+		}
+
+		let bestDataUrl = originalDataUrl;
+		let bestBytes = estimateDataUrlBytes(originalDataUrl);
+
+		for (const scaleStep of IMAGE_COMPRESSION_SCALE_STEPS) {
+			const scale = Math.min(1, baseScale * scaleStep);
+			const width = Math.max(1, Math.round(originalWidth * scale));
+			const height = Math.max(1, Math.round(originalHeight * scale));
+
+			canvas.width = width;
+			canvas.height = height;
+			context.clearRect(0, 0, width, height);
+			context.drawImage(image, 0, 0, width, height);
+
+			for (const quality of IMAGE_COMPRESSION_QUALITY_STEPS) {
+				const candidateDataUrl = canvas.toDataURL("image/jpeg", quality);
+				const candidateBytes = estimateDataUrlBytes(candidateDataUrl);
+				if (candidateBytes < bestBytes) {
+					bestDataUrl = candidateDataUrl;
+					bestBytes = candidateBytes;
+				}
+
+				if (bestBytes <= IMAGE_COMPRESSION_TARGET_BYTES) {
+					break;
+				}
+			}
+
+			if (bestBytes <= IMAGE_COMPRESSION_TARGET_BYTES) {
+				break;
+			}
+		}
+
+		return {
+			name: String(file.name || "file"),
+			dataUrl: bestDataUrl,
+		};
+	} catch (error) {
+		return {
+			name: String(file.name || "file"),
+			dataUrl: originalDataUrl,
+		};
+	}
+}
+
 function readFilesAsDataUrls(fileList) {
 	const files = Array.from(fileList || []);
 	if (files.length === 0) {
 		return Promise.resolve([]);
 	}
 
-	const promises = files.map(
-		(file) =>
-			new Promise((resolve) => {
-				const reader = new FileReader();
-				reader.onload = () => {
-					resolve({ name: file.name, dataUrl: String(reader.result || "") });
-				};
-				reader.onerror = () => {
-					resolve({ name: file.name, dataUrl: "" });
-				};
-				reader.readAsDataURL(file);
-			}),
-	);
+	const promises = files.map((file) => compressImageFile(file));
 
 	return Promise.all(promises);
 }
