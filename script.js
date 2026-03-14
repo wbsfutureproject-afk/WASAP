@@ -3130,17 +3130,7 @@ function renderDashboard(session) {
 				return;
 			}
 
-			if (![
-				"Mining",
-				"Hauling",
-				"Port",
-				"Workshop",
-				"Warehouse",
-				"CHPP",
-				"Office",
-				"Camp",
-				"Others",
-			].includes(payload.lokasiTemuan)) {
+			if (!DEFAULT_LOKASI_TEMUAN.includes(payload.lokasiTemuan)) {
 				ktaError.textContent = "Lokasi Temuan harus dipilih dari daftar yang tersedia.";
 				return;
 			}
@@ -3722,17 +3712,7 @@ function renderDashboard(session) {
 				return;
 			}
 
-			if (![
-				"Mining",
-				"Hauling",
-				"Port",
-				"Workshop",
-				"Warehouse",
-				"CHPP",
-				"Office",
-				"Camp",
-				"Others",
-			].includes(payload.lokasiTemuan)) {
+			if (!DEFAULT_LOKASI_TEMUAN.includes(payload.lokasiTemuan)) {
 				ttaError.textContent = "Lokasi Temuan harus dipilih dari daftar yang tersedia.";
 				return;
 			}
