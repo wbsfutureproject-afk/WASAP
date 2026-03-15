@@ -3859,14 +3859,6 @@ function renderDashboard(session) {
 					<input id="userNamaLengkap" name="namaLengkap" type="text" required />
 				</div>
 				<div class="field">
-					<label for="userNoHp">No HP</label>
-					<input id="userNoHp" name="noHp" type="text" inputmode="numeric" required />
-				</div>
-				<div class="field">
-					<label for="userEmail">Alamat Email</label>
-					<input id="userEmail" name="alamatEmail" type="email" required />
-				</div>
-				<div class="field">
 					<label for="userNoKaryawan">No Karyawan</label>
 					<input id="userNoKaryawan" name="noKaryawan" type="text" required />
 				</div>
@@ -3918,8 +3910,6 @@ function renderDashboard(session) {
 				password: String(formData.get("password") || "").trim(),
 				kategori: String(formData.get("kategori") || "").trim(),
 				namaLengkap: String(formData.get("namaLengkap") || "").trim(),
-				noHp: String(formData.get("noHp") || "").trim(),
-				alamatEmail: String(formData.get("alamatEmail") || "").trim().toLowerCase(),
 				noKaryawan: String(formData.get("noKaryawan") || "").trim(),
 				jabatan: String(formData.get("jabatan") || "").trim(),
 				kelompokJabatan: String(formData.get("kelompokJabatan") || "").trim(),
@@ -3934,8 +3924,6 @@ function renderDashboard(session) {
 				"password",
 				"kategori",
 				"namaLengkap",
-				"noHp",
-				"alamatEmail",
 				"noKaryawan",
 				"jabatan",
 				"kelompokJabatan",
@@ -3964,22 +3952,6 @@ function renderDashboard(session) {
 
 			if (!["Admin", "User"].includes(userData.kategori)) {
 				return "Kategori harus Admin atau User.";
-			}
-
-			if (!/^\d{1,13}$/.test(userData.noHp)) {
-				return "No HP harus angka dan maksimal 13 angka.";
-			}
-
-			if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(userData.alamatEmail)) {
-				return "Format alamat email tidak valid.";
-			}
-
-			const emailLower = userData.alamatEmail.toLowerCase();
-			const duplicateEmail = users.some(
-				(item, index) => index !== editIndex && String(item.alamatEmail || "").trim().toLowerCase() === emailLower,
-			);
-			if (duplicateEmail) {
-				return "Alamat email tidak boleh duplikasi.";
 			}
 
 			if (!departments.includes(userData.departemen)) {
