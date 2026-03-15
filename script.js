@@ -769,11 +769,31 @@ function getTodayDate() {
 	return new Date().toISOString().slice(0, 10);
 }
 
+function getNextRunningNumberByPrefix(records, prefix, month, year) {
+	const expectedPrefix = `${prefix} - ${month}/${year} - `;
+	const highest = records.reduce((max, item) => {
+		const noId = String(item?.noId || "").trim();
+		if (!noId.startsWith(expectedPrefix)) {
+			return max;
+		}
+
+		const runningPart = noId.slice(expectedPrefix.length).trim();
+		const value = Number.parseInt(runningPart, 10);
+		if (!Number.isFinite(value) || value <= 0) {
+			return max;
+		}
+
+		return Math.max(max, value);
+	}, 0);
+
+	return highest + 1;
+}
+
 function createKtaId() {
 	const now = new Date();
 	const month = String(now.getMonth() + 1).padStart(2, "0");
 	const year = String(now.getFullYear());
-	const runningNumber = String(getKtaRecords().length + 1).padStart(4, "0");
+	const runningNumber = String(getNextRunningNumberByPrefix(getKtaRecords(), "KTA", month, year)).padStart(4, "0");
 	return `KTA - ${month}/${year} - ${runningNumber}`;
 }
 
@@ -781,7 +801,7 @@ function createTtaId() {
 	const now = new Date();
 	const month = String(now.getMonth() + 1).padStart(2, "0");
 	const year = String(now.getFullYear());
-	const runningNumber = String(getTtaRecords().length + 1).padStart(4, "0");
+	const runningNumber = String(getNextRunningNumberByPrefix(getTtaRecords(), "TTA", month, year)).padStart(4, "0");
 	return `TTA - ${month}/${year} - ${runningNumber}`;
 }
 
