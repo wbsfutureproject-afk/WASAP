@@ -227,6 +227,14 @@ button {
 	margin-top: 8px;
 }
 
+#userForm .field {
+	margin-bottom: 0;
+}
+
+#userForm .inline-actions {
+	margin-top: 4px;
+}
+
 .field-full {
 	grid-column: 1 / -1;
 }
@@ -938,6 +946,10 @@ button {
 
 	.form-grid {
 		grid-template-columns: 1fr;
+	}
+
+	#userForm.form-grid {
+		gap: 8px;
 	}
 
 	.detail-grid {
