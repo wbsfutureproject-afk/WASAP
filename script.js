@@ -1684,7 +1684,7 @@ function renderDashboard(session) {
 		}
 
 		if (normalizedGroup === "LEVEL 1 MGT") {
-			return 1;
+			return 2;
 		}
 
 		return 0;
@@ -1871,8 +1871,8 @@ function renderDashboard(session) {
 
 		if (normalizedGroup === "LEVEL 1 MGT") {
 			return {
-				monthlyTarget: 2 * daysInCurrentMonth,
-				yearlyTarget: 730,
+				monthlyTarget: 1 * daysInCurrentMonth,
+				yearlyTarget: 365,
 			};
 		}
 
@@ -2132,7 +2132,7 @@ function renderDashboard(session) {
 		const groupTargetBasis = {
 			OPERATOR: "3 / minggu (gabungan KTA+TTA)",
 			PENGAWAS: "KTA 2 + TTA 1 / hari",
-			"LEVEL 1 MGT": "KTA 1 + TTA 2 / hari",
+			"LEVEL 1 MGT": "KTA 2 + TTA 1 / hari",
 		};
 
 		const grouped = new Map(groupOrder.map((group) => [group, { group, personCount: 0, target: 0, achievement: 0 }]));
