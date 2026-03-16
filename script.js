@@ -2723,22 +2723,22 @@ function renderDashboard(session) {
 							activeTtaFilter && activeTtaFilter.dimension === dimension && activeTtaFilter.value === value,
 						);
 						activeTtaFilter = isSame ? null : { dimension, value };
-
-								const statusCards = contentArea.querySelectorAll("[data-status]");
-								statusCards.forEach((card) => {
-									card.addEventListener("click", () => {
-										const dashboard = card.dataset.statusDashboard;
-										const status = card.dataset.status;
-										if (dashboard === "KTA") {
-											activeKtaStatusFilter = activeKtaStatusFilter === status ? null : status;
-										} else {
-											activeTtaStatusFilter = activeTtaStatusFilter === status ? null : status;
-										}
-										renderAdminAchievementView();
-									});
-								});
 					}
 
+					renderAdminAchievementView();
+				});
+			});
+
+			const statusCards = contentArea.querySelectorAll("[data-status]");
+			statusCards.forEach((card) => {
+				card.addEventListener("click", () => {
+					const dashboard = card.dataset.statusDashboard;
+					const status = card.dataset.status;
+					if (dashboard === "KTA") {
+						activeKtaStatusFilter = activeKtaStatusFilter === status ? null : status;
+					} else {
+						activeTtaStatusFilter = activeTtaStatusFilter === status ? null : status;
+					}
 					renderAdminAchievementView();
 				});
 			});
