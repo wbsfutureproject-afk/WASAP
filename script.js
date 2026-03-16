@@ -4612,7 +4612,7 @@ function renderDashboard(session) {
 							<textarea id="taskTindakanPerbaikan" name="tindakanPerbaikan" rows="3" required>${record.tindakanPerbaikan || ""}</textarea>
 						</div>
 						<div class="field field-full">
-							<label for="taskFotoPerbaikan">Foto Perbaikan</label>
+							<label for="taskFotoPerbaikan">Foto Perbaikan (Opsional)</label>
 							<input id="taskFotoPerbaikan" name="fotoPerbaikan" type="file" accept="image/*" multiple />
 						</div>
 						<div class="field">
@@ -4638,9 +4638,11 @@ function renderDashboard(session) {
 
 				const closeTaskProcess = document.getElementById("closeTaskProcess");
 				const taskProcessForm = document.getElementById("taskProcessForm");
+				const taskFotoPerbaikanField = document.getElementById("taskFotoPerbaikan");
 				const taskProcessError = document.getElementById("taskProcessError");
 				const taskProcessSuccess = document.getElementById("taskProcessSuccess");
 				const taskProcessSubmitBtn = taskProcessForm.querySelector('button[type="submit"]');
+				taskFotoPerbaikanField.required = false;
 
 				closeTaskProcess.addEventListener("click", () => {
 					taskProcessPanel.classList.add("hidden");
@@ -4662,7 +4664,7 @@ function renderDashboard(session) {
 					const fotoPerbaikanFiles = document.getElementById("taskFotoPerbaikan").files || [];
 
 					if (!tindakanPerbaikan || !tanggalPerbaikan || !status) {
-						taskProcessError.textContent = "Lengkapi Tindakan Perbaikan, Foto Perbaikan (opsional), Tanggal Perbaikan, dan Status.";
+						taskProcessError.textContent = "Lengkapi Tindakan Perbaikan, Tanggal Perbaikan, dan Status.";
 						return;
 					}
 
