@@ -584,6 +584,28 @@ button {
 .achievement-stat-card p {
 	margin: 0;
 	font-size: 20px;
+
+	.achievement-stat-clickable {
+		cursor: pointer;
+		text-align: left;
+		width: 100%;
+		transition: border-color 0.15s, background 0.15s;
+	}
+
+	.achievement-stat-clickable:hover {
+		border-color: var(--primary);
+		background: #f0f5ff;
+	}
+
+	.achievement-stat-clickable.active {
+		border-color: var(--primary);
+		background: var(--primary);
+	}
+
+	.achievement-stat-clickable.active h4,
+	.achievement-stat-clickable.active p {
+		color: #fff;
+	}
 	font-weight: 700;
 	color: var(--text);
 }

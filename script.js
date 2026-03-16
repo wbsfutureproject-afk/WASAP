@@ -2506,6 +2506,8 @@ function renderDashboard(session) {
 		let activeDashboard = "KTA";
 		let activeKtaFilter = null;
 		let activeTtaFilter = null;
+		let activeKtaStatusFilter = null;
+		let activeTtaStatusFilter = null;
 		let dateRangeStart = "";
 		let dateRangeEnd = "";
 
@@ -2514,23 +2516,31 @@ function renderDashboard(session) {
 			const allTtaRecords = getTtaRecords();
 			const rangedKtaRecords = applyAchievementDateRange(allKtaRecords, dateRangeStart, dateRangeEnd);
 			const rangedTtaRecords = applyAchievementDateRange(allTtaRecords, dateRangeStart, dateRangeEnd);
-			const ktaRecords = applyAchievementFilter(rangedKtaRecords, activeKtaFilter);
-			const ttaRecords = applyAchievementFilter(rangedTtaRecords, activeTtaFilter);
+			const filteredKtaRecords = applyAchievementFilter(rangedKtaRecords, activeKtaFilter);
+			const filteredTtaRecords = applyAchievementFilter(rangedTtaRecords, activeTtaFilter);
+			const ktaRecords = activeKtaStatusFilter
+				? filteredKtaRecords.filter((r) => r.status === activeKtaStatusFilter)
+				: filteredKtaRecords;
+			const ttaRecords = activeTtaStatusFilter
+				? filteredTtaRecords.filter((r) => r.status === activeTtaStatusFilter)
+				: filteredTtaRecords;
 
-			const ktaSummary = getAchievementStatusSummary(ktaRecords);
-			const ttaSummary = getAchievementStatusSummary(ttaRecords);
+			const ktaSummary = getAchievementStatusSummary(filteredKtaRecords);
+			const ttaSummary = getAchievementStatusSummary(filteredTtaRecords);
 
 			const activeFilter = activeDashboard === "KTA" ? activeKtaFilter : activeTtaFilter;
+			const activeStatusFilter = activeDashboard === "KTA" ? activeKtaStatusFilter : activeTtaStatusFilter;
 			const activeFilterText = activeFilter
 				? `${getAchievementDimensionLabel(activeFilter.dimension)}: ${activeFilter.value}`
 				: "Tanpa filter";
+			const statusFilterText = activeStatusFilter ? activeStatusFilter : "Semua status";
 			const dateFilterText = dateRangeStart || dateRangeEnd ? `${dateRangeStart || "-"} s.d. ${dateRangeEnd || "-"}` : "Semua tanggal";
 
 			const ktaDashboardHtml = `
 				<div class="achievement-stat-grid">
-					<div class="achievement-stat-card"><h4>Open</h4><p>${ktaSummary.openCount}</p></div>
-					<div class="achievement-stat-card"><h4>Progress</h4><p>${ktaSummary.progressCount}</p></div>
-					<div class="achievement-stat-card"><h4>Close</h4><p>${ktaSummary.closeCount}</p></div>
+					<button type="button" class="achievement-stat-card achievement-stat-clickable ${activeKtaStatusFilter === "Open" ? "active" : ""}" data-status-dashboard="KTA" data-status="Open"><h4>Open</h4><p>${ktaSummary.openCount}</p></button>
+					<button type="button" class="achievement-stat-card achievement-stat-clickable ${activeKtaStatusFilter === "Progress" ? "active" : ""}" data-status-dashboard="KTA" data-status="Progress"><h4>Progress</h4><p>${ktaSummary.progressCount}</p></button>
+					<button type="button" class="achievement-stat-card achievement-stat-clickable ${activeKtaStatusFilter === "Close" ? "active" : ""}" data-status-dashboard="KTA" data-status="Close"><h4>Close</h4><p>${ktaSummary.closeCount}</p></button>
 					<div class="achievement-stat-card"><h4>Total KTA</h4><p>${ktaSummary.totalCount}</p></div>
 					<div class="achievement-stat-card"><h4>Persentase Open</h4><p>${ktaSummary.openPercentage.toFixed(2)}%</p></div>
 				</div>
@@ -2572,9 +2582,9 @@ function renderDashboard(session) {
 
 			const ttaDashboardHtml = `
 				<div class="achievement-stat-grid">
-					<div class="achievement-stat-card"><h4>Open</h4><p>${ttaSummary.openCount}</p></div>
-					<div class="achievement-stat-card"><h4>Progress</h4><p>${ttaSummary.progressCount}</p></div>
-					<div class="achievement-stat-card"><h4>Close</h4><p>${ttaSummary.closeCount}</p></div>
+					<button type="button" class="achievement-stat-card achievement-stat-clickable ${activeTtaStatusFilter === "Open" ? "active" : ""}" data-status-dashboard="TTA" data-status="Open"><h4>Open</h4><p>${ttaSummary.openCount}</p></button>
+					<button type="button" class="achievement-stat-card achievement-stat-clickable ${activeTtaStatusFilter === "Progress" ? "active" : ""}" data-status-dashboard="TTA" data-status="Progress"><h4>Progress</h4><p>${ttaSummary.progressCount}</p></button>
+					<button type="button" class="achievement-stat-card achievement-stat-clickable ${activeTtaStatusFilter === "Close" ? "active" : ""}" data-status-dashboard="TTA" data-status="Close"><h4>Close</h4><p>${ttaSummary.closeCount}</p></button>
 					<div class="achievement-stat-card"><h4>Total TTA</h4><p>${ttaSummary.totalCount}</p></div>
 					<div class="achievement-stat-card"><h4>Persentase Open</h4><p>${ttaSummary.openPercentage.toFixed(2)}%</p></div>
 				</div>
@@ -2641,6 +2651,7 @@ function renderDashboard(session) {
 				</div>
 				<div class="achievement-filter-info">
 					<p><strong>Filter Aktif:</strong> ${escapeAchievementHtml(activeFilterText)}</p>
+					<p><strong>Filter Status:</strong> ${escapeAchievementHtml(statusFilterText)}</p>
 					<p><strong>Rentang Tanggal:</strong> ${escapeAchievementHtml(dateFilterText)}</p>
 					<button type="button" class="btn-small" id="achievementResetFilter">Reset Filter</button>
 				</div>
@@ -2687,8 +2698,10 @@ function renderDashboard(session) {
 			resetFilterButton.addEventListener("click", () => {
 				if (activeDashboard === "KTA") {
 					activeKtaFilter = null;
+					activeKtaStatusFilter = null;
 				} else {
 					activeTtaFilter = null;
+					activeTtaStatusFilter = null;
 				}
 				renderAdminAchievementView();
 			});
@@ -2710,6 +2723,20 @@ function renderDashboard(session) {
 							activeTtaFilter && activeTtaFilter.dimension === dimension && activeTtaFilter.value === value,
 						);
 						activeTtaFilter = isSame ? null : { dimension, value };
+
+								const statusCards = contentArea.querySelectorAll("[data-status]");
+								statusCards.forEach((card) => {
+									card.addEventListener("click", () => {
+										const dashboard = card.dataset.statusDashboard;
+										const status = card.dataset.status;
+										if (dashboard === "KTA") {
+											activeKtaStatusFilter = activeKtaStatusFilter === status ? null : status;
+										} else {
+											activeTtaStatusFilter = activeTtaStatusFilter === status ? null : status;
+										}
+										renderAdminAchievementView();
+									});
+								});
 					}
 
 					renderAdminAchievementView();
