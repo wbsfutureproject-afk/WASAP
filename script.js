@@ -674,17 +674,30 @@ function getKtaRecords() {
 				return item;
 			}
 
+			let nextItem = item;
 			const directFix = String(item.perbaikanLangsung || "").trim();
 			const status = String(item.status || "").trim();
 			if (directFix === "Tidak" && !status) {
 				shouldPersistCleanup = true;
-				return {
-					...item,
+				nextItem = {
+					...nextItem,
 					status: "Open",
 				};
 			}
 
-			return item;
+			const currentPic = String(nextItem.namaPic || "").trim();
+			if (currentPic) {
+				const mappedFullName = getUserFullNameFromIdentifier(currentPic);
+				if (mappedFullName && mappedFullName !== "-" && mappedFullName !== currentPic) {
+					shouldPersistCleanup = true;
+					nextItem = {
+						...nextItem,
+						namaPic: mappedFullName,
+					};
+				}
+			}
+
+			return nextItem;
 		});
 
 		if (shouldPersistCleanup) {
@@ -2842,6 +2855,17 @@ function renderDashboard(session) {
 			<p id="ktaError" class="error"></p>
 			<div id="ktaSuccess" class="subtitle"></div>
 			<h3>Riwayat KTA</h3>
+			${isSuperAdmin
+				? `<div class="form-grid" id="ktaBulkDeletePanel">
+					<div class="field field-full">
+						<label for="ktaBulkDeleteIds">Hapus Massal KTA (No ID)</label>
+						<textarea id="ktaBulkDeleteIds" rows="2" placeholder="Contoh: KTA - 02/2026 - 0001, KTA - 02/2026 - 0002"></textarea>
+					</div>
+					<div class="inline-actions field-full">
+						<button type="button" id="ktaBulkDeleteBtn" class="btn-delete">Hapus Sesuai No ID</button>
+					</div>
+				</div>`
+				: ""}
 			<div id="ktaHistory" class="table-wrap"></div>
 			<div id="ktaDetailPanel" class="detail-panel hidden"></div>
 		`;
@@ -2860,6 +2884,8 @@ function renderDashboard(session) {
 		const ktaDetailPanel = document.getElementById("ktaDetailPanel");
 		const ktaSubmitBtn = document.getElementById("ktaSubmitBtn");
 		const ktaCancelEditBtn = document.getElementById("ktaCancelEditBtn");
+		const ktaBulkDeleteIds = document.getElementById("ktaBulkDeleteIds");
+		const ktaBulkDeleteBtn = document.getElementById("ktaBulkDeleteBtn");
 
 		let editIndex = -1;
 		let existingTemuanPhotos = [];
@@ -3245,6 +3271,68 @@ function renderDashboard(session) {
 			ktaCancelEditBtn.addEventListener("click", () => {
 				resetKtaForm();
 				ktaSuccess.textContent = "Mode edit dibatalkan.";
+			});
+		}
+
+		if (ktaBulkDeleteIds && ktaBulkDeleteBtn) {
+			ktaBulkDeleteBtn.addEventListener("click", async () => {
+				ktaError.textContent = "";
+				ktaSuccess.textContent = "";
+
+				const requestedIds = Array.from(
+					new Set(
+						String(ktaBulkDeleteIds.value || "")
+							.split(/[\n,;]+/)
+							.map((value) => String(value || "").trim())
+							.filter(Boolean),
+					),
+				);
+
+				if (requestedIds.length === 0) {
+					ktaError.textContent = "Masukkan minimal satu No ID KTA untuk dihapus.";
+					return;
+				}
+
+				await runWithButtonLoading(ktaBulkDeleteBtn, "Menghapus...", async () => {
+					const recordsNow = getKtaRecords();
+					const requestedIdSet = new Set(requestedIds.map((item) => item.toLowerCase()));
+					const matchedRecords = recordsNow.filter((item) => requestedIdSet.has(String(item.noId || "").trim().toLowerCase()));
+
+					if (matchedRecords.length === 0) {
+						ktaError.textContent = "No ID yang dimasukkan tidak ditemukan di Riwayat KTA.";
+						return;
+					}
+
+					const successfulDeletes = new Set();
+					let failedDeleteCount = 0;
+
+					for (const record of matchedRecords) {
+						const result = await deleteKtaRecord(record.noId);
+						if (result.ok) {
+							successfulDeletes.add(String(record.noId || "").trim().toLowerCase());
+						} else {
+							failedDeleteCount += 1;
+						}
+					}
+
+					const remainingRecords = recordsNow.filter(
+						(item) => !successfulDeletes.has(String(item.noId || "").trim().toLowerCase()),
+					);
+					writeLocalArray(KTA_KEY, remainingRecords);
+
+					if (editIndex >= 0) {
+						const editedRecord = recordsNow[editIndex];
+						const editedNoId = String(editedRecord?.noId || "").trim().toLowerCase();
+						if (editedNoId && successfulDeletes.has(editedNoId)) {
+							resetKtaForm();
+						}
+					}
+
+					const notFoundCount = requestedIds.length - matchedRecords.length;
+					ktaSuccess.textContent = `Hapus massal selesai. Berhasil: ${successfulDeletes.size}, Gagal: ${failedDeleteCount}, Tidak ditemukan: ${notFoundCount}.`;
+					ktaBulkDeleteIds.value = "";
+					renderKtaHistory();
+				});
 			});
 		}
 
