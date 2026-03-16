@@ -4803,13 +4803,12 @@ function renderDashboard(session) {
 					taskProcessSuccess.textContent = "";
 
 					await runWithButtonLoading(taskProcessSubmitBtn, "Menyimpan...", async () => {
-					await runWithFormControlsDisabled(taskProcessForm, async () => {
-
 					const formData = new FormData(taskProcessForm);
 					const tindakanPerbaikan = String(formData.get("tindakanPerbaikan") || "").trim();
 					const tanggalPerbaikan = String(formData.get("tanggalPerbaikan") || "").trim();
 					const status = String(formData.get("status") || "").trim();
 					const fotoPerbaikanFiles = document.getElementById("taskFotoPerbaikan").files || [];
+					await runWithFormControlsDisabled(taskProcessForm, async () => {
 
 					if (!tindakanPerbaikan || !tanggalPerbaikan || !status) {
 						taskProcessError.textContent = "Lengkapi Tindakan Perbaikan, Tanggal Perbaikan, dan Status.";
