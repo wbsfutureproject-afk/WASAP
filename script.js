@@ -1679,7 +1679,11 @@ function renderDashboard(session) {
 			return 3;
 		}
 
-		if (normalizedGroup === "PENGAWAS" || normalizedGroup === "LEVEL 1 MGT") {
+		if (normalizedGroup === "PENGAWAS") {
+			return 2;
+		}
+
+		if (normalizedGroup === "LEVEL 1 MGT") {
 			return 1;
 		}
 
@@ -1744,7 +1748,7 @@ function renderDashboard(session) {
 				});
 
 				const monthlyTarget = targetMultiplier * daysInCurrentMonth;
-				const yearlyTarget = targetMultiplier > 0 ? 365 : 0;
+				const yearlyTarget = targetMultiplier > 0 ? targetMultiplier * 365 : 0;
 
 				return {
 					reporterName,
@@ -1858,7 +1862,14 @@ function renderDashboard(session) {
 
 	function getTtaTargetByJobGroup(jobGroup, daysInCurrentMonth) {
 		const normalizedGroup = normalizeJobGroup(jobGroup);
-		if (normalizedGroup === "PENGAWAS" || normalizedGroup === "LEVEL 1 MGT") {
+		if (normalizedGroup === "PENGAWAS") {
+			return {
+				monthlyTarget: 1 * daysInCurrentMonth,
+				yearlyTarget: 365,
+			};
+		}
+
+		if (normalizedGroup === "LEVEL 1 MGT") {
 			return {
 				monthlyTarget: 2 * daysInCurrentMonth,
 				yearlyTarget: 730,
@@ -2120,7 +2131,7 @@ function renderDashboard(session) {
 		const groupOrder = ["OPERATOR", "PENGAWAS", "LEVEL 1 MGT"];
 		const groupTargetBasis = {
 			OPERATOR: "3 / minggu (gabungan KTA+TTA)",
-			PENGAWAS: "KTA 1 + TTA 2 / hari",
+			PENGAWAS: "KTA 2 + TTA 1 / hari",
 			"LEVEL 1 MGT": "KTA 1 + TTA 2 / hari",
 		};
 
@@ -2245,7 +2256,7 @@ function renderDashboard(session) {
 		}
 
 		const activeRange = resolveAchievementActiveDateRange(records, startDate, endDate);
-		const targetPerReporter = getAchievementDaySpan(activeRange.start, activeRange.end);
+		const activeDayCount = getAchievementDaySpan(activeRange.start, activeRange.end);
 
 		const rows = users
 			.map((user) => {
@@ -2270,13 +2281,14 @@ function renderDashboard(session) {
 					achievementCount += 1;
 				});
 
-				const shortage = Math.max(0, targetPerReporter - achievementCount);
-				const isAchieved = achievementCount >= targetPerReporter;
+				const targetCount = getKtaTargetMultiplierByJobGroup(normalizedGroup) * activeDayCount;
+				const shortage = Math.max(0, targetCount - achievementCount);
+				const isAchieved = achievementCount >= targetCount;
 
 				return {
 					reporterName,
 					jobGroup: normalizedGroup || "-",
-					targetCount: targetPerReporter,
+					targetCount,
 					achievementCount,
 					shortage,
 					isAchieved,
@@ -2353,7 +2365,7 @@ function renderDashboard(session) {
 		}
 
 		const activeRange = resolveAchievementActiveDateRange(records, startDate, endDate);
-		const targetPerReporter = getAchievementDaySpan(activeRange.start, activeRange.end) * 2;
+		const activeDayCount = getAchievementDaySpan(activeRange.start, activeRange.end);
 
 		const rows = users
 			.map((user) => {
@@ -2378,13 +2390,14 @@ function renderDashboard(session) {
 					achievementCount += 1;
 				});
 
-				const shortage = Math.max(0, targetPerReporter - achievementCount);
-				const isAchieved = achievementCount >= targetPerReporter;
+				const targetCount = getTtaTargetByJobGroup(normalizedGroup, activeDayCount).monthlyTarget;
+				const shortage = Math.max(0, targetCount - achievementCount);
+				const isAchieved = achievementCount >= targetCount;
 
 				return {
 					reporterName,
 					jobGroup: normalizedGroup || "-",
-					targetCount: targetPerReporter,
+					targetCount,
 					achievementCount,
 					shortage,
 					isAchieved,
@@ -2783,7 +2796,7 @@ function renderDashboard(session) {
 					<textarea id="ktaDetailTemuan" name="detailTemuan" rows="3" required></textarea>
 				</div>
 				<div class="field field-full">
-					<label for="ktaFotoTemuan">Foto Temuan</label>
+					<label for="ktaFotoTemuan">Foto Temuan (Opsional)</label>
 					<input id="ktaFotoTemuan" name="fotoTemuan" type="file" accept="image/*" multiple />
 				</div>
 				<div class="field">
@@ -2802,7 +2815,7 @@ function renderDashboard(session) {
 							<textarea id="ktaTindakanPerbaikan" name="tindakanPerbaikan" rows="3"></textarea>
 						</div>
 						<div class="field field-full">
-							<label for="ktaFotoPerbaikan">Foto Perbaikan</label>
+							<label for="ktaFotoPerbaikan">Foto Perbaikan (Opsional)</label>
 							<input id="ktaFotoPerbaikan" name="fotoPerbaikan" type="file" accept="image/*" multiple />
 						</div>
 						<div class="field">
@@ -2837,6 +2850,8 @@ function renderDashboard(session) {
 		const perbaikanLangsung = document.getElementById("ktaPerbaikanLangsung");
 		const directFixSection = document.getElementById("directFixSection");
 		const tindakanPerbaikan = document.getElementById("ktaTindakanPerbaikan");
+		const fotoTemuanField = document.getElementById("ktaFotoTemuan");
+		const fotoPerbaikanField = document.getElementById("ktaFotoPerbaikan");
 		const tanggalPerbaikan = document.getElementById("ktaTanggalPerbaikan");
 		const statusField = document.getElementById("ktaStatus");
 		const ktaError = document.getElementById("ktaError");
@@ -3073,6 +3088,8 @@ function renderDashboard(session) {
 			const isDirectFix = perbaikanLangsung.value === "Ya";
 			directFixSection.classList.toggle("hidden", !isDirectFix);
 			tindakanPerbaikan.required = isDirectFix;
+			fotoTemuanField.required = false;
+			fotoPerbaikanField.required = false;
 			tanggalPerbaikan.required = isDirectFix;
 			statusField.required = isDirectFix;
 		}
@@ -3328,6 +3345,7 @@ function renderDashboard(session) {
 					<label for="ttaPelaku">Nama Pelaku TTA</label>
 					<select id="ttaPelaku" name="namaPelakuTta" required>
 						<option value="">Pilih Pelaku TTA</option>
+						<option value="-">-</option>
 						${userOptions.map((item) => `<option value="${item.username}">${item.namaLengkap || item.username}</option>`).join("")}
 					</select>
 				</div>
@@ -3348,7 +3366,7 @@ function renderDashboard(session) {
 					<textarea id="ttaDetailTemuan" name="detailTemuan" rows="3" required></textarea>
 				</div>
 				<div class="field field-full">
-					<label for="ttaFotoTemuan">Foto Temuan</label>
+					<label for="ttaFotoTemuan">Foto Temuan (Opsional)</label>
 					<input id="ttaFotoTemuan" name="fotoTemuan" type="file" accept="image/*" multiple />
 				</div>
 				<div class="field">
@@ -3367,7 +3385,7 @@ function renderDashboard(session) {
 							<textarea id="ttaTindakanPerbaikan" name="tindakanPerbaikan" rows="3"></textarea>
 						</div>
 						<div class="field field-full">
-							<label for="ttaFotoPerbaikan">Foto Perbaikan</label>
+							<label for="ttaFotoPerbaikan">Foto Perbaikan (Opsional)</label>
 							<input id="ttaFotoPerbaikan" name="fotoPerbaikan" type="file" accept="image/*" multiple />
 						</div>
 						<div class="field">
@@ -3406,6 +3424,8 @@ function renderDashboard(session) {
 		const perbaikanLangsung = document.getElementById("ttaPerbaikanLangsung");
 		const directFixSection = document.getElementById("ttaDirectFixSection");
 		const tindakanPerbaikan = document.getElementById("ttaTindakanPerbaikan");
+		const fotoTemuanField = document.getElementById("ttaFotoTemuan");
+		const fotoPerbaikanField = document.getElementById("ttaFotoPerbaikan");
 		const tanggalPerbaikan = document.getElementById("ttaTanggalPerbaikan");
 		const statusField = document.getElementById("ttaStatus");
 		const ttaError = document.getElementById("ttaError");
@@ -3443,6 +3463,13 @@ function renderDashboard(session) {
 		}
 
 		function updatePelakuInfo() {
+			if (pelakuField.value === "-") {
+				jabatanPelakuField.value = "-";
+				departemenPelakuField.value = "-";
+				perusahaanPelakuField.value = "-";
+				return;
+			}
+
 			const selected = userOptions.find((item) => item.username === pelakuField.value);
 			jabatanPelakuField.value = selected ? selected.jabatan : "";
 			departemenPelakuField.value = selected ? selected.departemen : "";
@@ -3583,7 +3610,8 @@ function renderDashboard(session) {
 					const selectedPelakuUser = userOptions.find(
 						(item) => item.username === selected.namaPelakuTta || item.namaLengkap === selected.namaPelakuTta,
 					);
-					document.getElementById("ttaPelaku").value = selectedPelakuUser ? selectedPelakuUser.username : "";
+					document.getElementById("ttaPelaku").value =
+						selectedPelakuUser ? selectedPelakuUser.username : selected.namaPelakuTta === "-" ? "-" : "";
 					document.getElementById("ttaDetailTemuan").value = selected.detailTemuan;
 					document.getElementById("ttaPerbaikanLangsung").value = selected.perbaikanLangsung;
 					document.getElementById("ttaTindakanPerbaikan").value = selected.tindakanPerbaikan || "";
@@ -3649,6 +3677,8 @@ function renderDashboard(session) {
 			const isDirectFix = perbaikanLangsung.value === "Ya";
 			directFixSection.classList.toggle("hidden", !isDirectFix);
 			tindakanPerbaikan.required = isDirectFix;
+			fotoTemuanField.required = false;
+			fotoPerbaikanField.required = false;
 			tanggalPerbaikan.required = isDirectFix;
 			statusField.required = isDirectFix;
 		}
@@ -3737,21 +3767,27 @@ function renderDashboard(session) {
 				return;
 			}
 
-			const selectedPelaku = userOptions.find((item) => item.username === payload.namaPelakuTta);
-			if (!selectedPelaku) {
-				ttaError.textContent = "Nama Pelaku TTA harus dipilih dari Daftar User.";
-				return;
-			}
+			if (payload.namaPelakuTta === "-") {
+				payload.jabatanPelakuTta = "-";
+				payload.departemenPelakuTta = "-";
+				payload.perusahaanPelakuTta = "-";
+			} else {
+				const selectedPelaku = userOptions.find((item) => item.username === payload.namaPelakuTta);
+				if (!selectedPelaku) {
+					ttaError.textContent = "Nama Pelaku TTA harus dipilih dari Daftar User atau '-' .";
+					return;
+				}
 
-			payload.namaPelakuTta = String(selectedPelaku.namaLengkap || selectedPelaku.username || "").trim();
+				payload.namaPelakuTta = String(selectedPelaku.namaLengkap || selectedPelaku.username || "").trim();
 
-			if (
-				payload.jabatanPelakuTta !== selectedPelaku.jabatan ||
-				payload.departemenPelakuTta !== selectedPelaku.departemen ||
-				payload.perusahaanPelakuTta !== (selectedPelaku.perusahaan || "-")
-			) {
-				ttaError.textContent = "Jabatan/Departemen/Perusahaan pelaku harus sesuai dengan data Daftar User.";
-				return;
+				if (
+					payload.jabatanPelakuTta !== selectedPelaku.jabatan ||
+					payload.departemenPelakuTta !== selectedPelaku.departemen ||
+					payload.perusahaanPelakuTta !== (selectedPelaku.perusahaan || "-")
+				) {
+					ttaError.textContent = "Jabatan/Departemen/Perusahaan pelaku harus sesuai dengan data Daftar User.";
+					return;
+				}
 			}
 
 			if (payload.perbaikanLangsung === "Ya") {
