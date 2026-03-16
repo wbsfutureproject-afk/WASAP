@@ -4572,7 +4572,7 @@ function renderDashboard(session) {
 												<p><strong>Nama Pelapor:</strong> ${item.namaPelapor}</p>
 												<p><strong>Perusahaan Pelaporan:</strong> ${item.perusahaanPelaporan}</p>
 												<p><strong>Status:</strong> ${item.status}</p>
-												${item.canProcessByPic ? '<p class="task-edit-hint"><strong>Aksi:</strong> Klik card untuk proses tindak lanjut.</p>' : ""}
+												${item.canProcessByPic ? '<p class="task-edit-hint"><strong>Aksi:</strong> Klik card untuk lihat detail & proses tindak lanjut.</p>' : ""}
 											</div>
 										</article>
 									`,
@@ -4585,6 +4585,65 @@ function renderDashboard(session) {
 
 		const taskCards = contentArea.querySelectorAll(".task-card[data-can-process='1']");
 		const taskProcessPanel = document.getElementById("taskProcessPanel");
+
+		function renderTaskPhotos(photos) {
+			if (!Array.isArray(photos) || photos.length === 0) {
+				return '<p class="subtitle">Tidak ada foto.</p>';
+			}
+
+			const photoHtml = photos
+				.map((photo) => {
+					if (!photo?.dataUrl) {
+						return `<div class="photo-card"><p class="subtitle">${photo?.name || "Foto"}</p></div>`;
+					}
+
+					return `
+						<div class="photo-card">
+							<img src="${photo.dataUrl}" alt="${photo.name || "Foto"}" class="photo-thumb" />
+							<p class="photo-caption">${photo.name || "Foto"}</p>
+						</div>
+					`;
+				})
+				.join("");
+
+			return `<div class="photo-grid">${photoHtml}</div>`;
+		}
+
+		function renderTaskDetailSummary(record, source) {
+			if (source === "kta") {
+				return `
+					<div class="detail-grid">
+						<p><strong>Tanggal Temuan:</strong> ${escapeAchievementHtml(record.tanggalTemuan || "-")}</p>
+						<p><strong>Kategori Temuan:</strong> ${escapeAchievementHtml(record.kategoriTemuan || "-")}</p>
+						<p><strong>Lokasi Temuan:</strong> ${escapeAchievementHtml(record.lokasiTemuan || "-")}</p>
+						<p><strong>Detail Lokasi:</strong> ${escapeAchievementHtml(record.detailLokasiTemuan || "-")}</p>
+						<p><strong>Risk Level:</strong> ${escapeAchievementHtml(record.riskLevel || "-")}</p>
+						<p><strong>PIC:</strong> ${escapeAchievementHtml(record.namaPic || "-")}</p>
+						<p><strong>Status:</strong> ${escapeAchievementHtml(record.status || "-")}</p>
+					</div>
+					<p><strong>Detail Temuan:</strong> ${escapeAchievementHtml(record.detailTemuan || "-")}</p>
+					<h4>Foto Temuan</h4>
+					${renderTaskPhotos(record.fotoTemuan)}
+				`;
+			}
+
+			return `
+				<div class="detail-grid">
+					<p><strong>Tanggal Temuan:</strong> ${escapeAchievementHtml(record.tanggalTemuan || "-")}</p>
+					<p><strong>Jam Temuan:</strong> ${escapeAchievementHtml(record.jamTemuan || "-")}</p>
+					<p><strong>Kategori Temuan:</strong> ${escapeAchievementHtml(record.kategoriTemuan || "-")}</p>
+					<p><strong>Lokasi Temuan:</strong> ${escapeAchievementHtml(record.lokasiTemuan || "-")}</p>
+					<p><strong>Detail Lokasi:</strong> ${escapeAchievementHtml(record.detailLokasiTemuan || "-")}</p>
+					<p><strong>Risk Level:</strong> ${escapeAchievementHtml(record.riskLevel || "-")}</p>
+					<p><strong>PIC:</strong> ${escapeAchievementHtml(record.namaPja || record.namaPic || "-")}</p>
+					<p><strong>Pelaku TTA:</strong> ${escapeAchievementHtml(getUserFullNameFromIdentifier(record.namaPelakuTta))}</p>
+					<p><strong>Status:</strong> ${escapeAchievementHtml(record.status || "-")}</p>
+				</div>
+				<p><strong>Detail Temuan:</strong> ${escapeAchievementHtml(record.detailTemuan || "-")}</p>
+				<h4>Foto Temuan</h4>
+				${renderTaskPhotos(record.fotoTemuan)}
+			`;
+		}
 
 		taskCards.forEach((card) => {
 			card.addEventListener("click", () => {
@@ -4606,6 +4665,7 @@ function renderDashboard(session) {
 						<h3>Proses ${source.toUpperCase()} - ${record.noId || "-"}</h3>
 						<button type="button" class="btn-small" id="closeTaskProcess">Tutup</button>
 					</div>
+					${renderTaskDetailSummary(record, source)}
 					<form id="taskProcessForm" class="form-grid" novalidate>
 						<div class="field field-full">
 							<label for="taskTindakanPerbaikan">Tindakan Perbaikan</label>
