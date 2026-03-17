@@ -1729,7 +1729,7 @@ function renderDashboard(session) {
 		const normalizedGroup = normalizeJobGroup(jobGroup);
 
 		if (normalizedGroup === "OPERATOR") {
-			return 3;
+			return 1;
 		}
 
 		if (normalizedGroup === "PENGAWAS") {
@@ -2183,7 +2183,7 @@ function renderDashboard(session) {
 
 		const groupOrder = ["OPERATOR", "PENGAWAS", "LEVEL 1 MGT"];
 		const groupTargetBasis = {
-			OPERATOR: "3 / minggu (gabungan KTA+TTA)",
+			OPERATOR: "1 / minggu (gabungan KTA+TTA)",
 			PENGAWAS: "KTA 2 + TTA 1 / hari",
 			"LEVEL 1 MGT": "KTA 2 + TTA 1 / hari",
 		};
@@ -2212,7 +2212,7 @@ function renderDashboard(session) {
 				0,
 			);
 
-			const perUserTarget = normalizedGroup === "OPERATOR" ? 3 * activeWeekCount : 3 * activeDayCount;
+			const perUserTarget = normalizedGroup === "OPERATOR" ? 1 * activeWeekCount : 3 * activeDayCount;
 
 			const groupData = grouped.get(normalizedGroup);
 			groupData.personCount += 1;
@@ -2697,7 +2697,7 @@ function renderDashboard(session) {
 				</section>
 				<section class="achievement-section">
 					<h3>Target dan Pencapaian Gabungan KTA / TTA (OPERATOR)</h3>
-					<p class="subtitle">Menampilkan Kelompok Jabatan OPERATOR dengan target 3 per minggu. Total target otomatis mengikuti date range aktif.</p>
+					<p class="subtitle">Menampilkan Kelompok Jabatan OPERATOR dengan target 1 per minggu. Total target otomatis mengikuti date range aktif.</p>
 					<div class="table-wrap kta-performance-table-wrap">
 						${renderOperatorCombinedPerformanceTable(rangedKtaRecords, rangedTtaRecords, dateRangeStart, dateRangeEnd)}
 					</div>
@@ -2747,7 +2747,7 @@ function renderDashboard(session) {
 				</section>
 				<section class="achievement-section">
 					<h3>Target dan Pencapaian Gabungan KTA / TTA (OPERATOR)</h3>
-					<p class="subtitle">Menampilkan Kelompok Jabatan OPERATOR dengan target 3 per minggu. Total target otomatis mengikuti date range aktif.</p>
+					<p class="subtitle">Menampilkan Kelompok Jabatan OPERATOR dengan target 1 per minggu. Total target otomatis mengikuti date range aktif.</p>
 					<div class="table-wrap kta-performance-table-wrap">
 						${renderOperatorCombinedPerformanceTable(rangedKtaRecords, rangedTtaRecords, dateRangeStart, dateRangeEnd)}
 					</div>
