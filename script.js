@@ -2341,6 +2341,7 @@ function renderDashboard(session) {
 				return {
 					reporterName,
 					jobGroup: normalizedGroup || "-",
+					department: String(user.departemen || "-").trim() || "-",
 					targetCount,
 					achievementCount,
 					shortage,
@@ -2360,6 +2361,7 @@ function renderDashboard(session) {
 					<tr>
 						<td class="${item.isAchieved ? "" : "reporter-low-achievement"}">${escapeAchievementHtml(item.reporterName)}</td>
 						<td>${escapeAchievementHtml(item.jobGroup)}</td>
+						<td>${escapeAchievementHtml(item.department)}</td>
 						<td>${item.targetCount}</td>
 						<td>${item.achievementCount}</td>
 						<td>${item.shortage}</td>
@@ -2383,11 +2385,12 @@ function renderDashboard(session) {
 		const totalStatusClass = totals.achievementCount >= totals.targetCount ? "task-status-close" : "task-status-open";
 
 		return `
-			<table class="data-table">
+			<table class="data-table" id="ktaReporterDateRangeTable">
 				<thead>
 					<tr>
 						<th>Nama Pelapor</th>
 						<th>Kelompok Jabatan</th>
+						<th>Departemen</th>
 						<th>Target KTA (Date Range Aktif)</th>
 						<th>Pencapaian KTA (Date Range Aktif)</th>
 						<th>Kekurangan</th>
@@ -2399,6 +2402,7 @@ function renderDashboard(session) {
 				<tfoot>
 					<tr>
 						<th>Total</th>
+						<th>-</th>
 						<th>-</th>
 						<th>${totals.targetCount}</th>
 						<th>${totals.achievementCount}</th>
@@ -2450,6 +2454,7 @@ function renderDashboard(session) {
 				return {
 					reporterName,
 					jobGroup: normalizedGroup || "-",
+					department: String(user.departemen || "-").trim() || "-",
 					targetCount,
 					achievementCount,
 					shortage,
@@ -2469,6 +2474,7 @@ function renderDashboard(session) {
 					<tr>
 						<td class="${item.isAchieved ? "" : "reporter-low-achievement"}">${escapeAchievementHtml(item.reporterName)}</td>
 						<td>${escapeAchievementHtml(item.jobGroup)}</td>
+						<td>${escapeAchievementHtml(item.department)}</td>
 						<td>${item.targetCount}</td>
 						<td>${item.achievementCount}</td>
 						<td>${item.shortage}</td>
@@ -2492,11 +2498,12 @@ function renderDashboard(session) {
 		const totalStatusClass = totals.achievementCount >= totals.targetCount ? "task-status-close" : "task-status-open";
 
 		return `
-			<table class="data-table">
+			<table class="data-table" id="ttaReporterDateRangeTable">
 				<thead>
 					<tr>
 						<th>Nama Pelapor</th>
 						<th>Kelompok Jabatan</th>
+						<th>Departemen</th>
 						<th>Target TTA (Date Range Aktif)</th>
 						<th>Pencapaian TTA (Date Range Aktif)</th>
 						<th>Kekurangan</th>
@@ -2508,6 +2515,7 @@ function renderDashboard(session) {
 				<tfoot>
 					<tr>
 						<th>Total</th>
+						<th>-</th>
 						<th>-</th>
 						<th>${totals.targetCount}</th>
 						<th>${totals.achievementCount}</th>
@@ -2550,6 +2558,28 @@ function renderDashboard(session) {
 		let activeTtaStatusFilter = null;
 		let dateRangeStart = "";
 		let dateRangeEnd = "";
+
+		function buildAchievementExportFileName(type) {
+			const startPart = dateRangeStart || "all";
+			const endPart = dateRangeEnd || "all";
+			return `pencapaian_${type.toLowerCase()}_${startPart}_sd_${endPart}.xlsx`;
+		}
+
+		function downloadAchievementTableAsXlsx(tableId, fileName) {
+			if (typeof XLSX === "undefined") {
+				window.alert("Library Excel belum termuat. Silakan refresh halaman dan coba lagi.");
+				return;
+			}
+
+			const table = document.getElementById(tableId);
+			if (!table) {
+				window.alert("Tabel tidak ditemukan untuk di-download.");
+				return;
+			}
+
+			const workbook = XLSX.utils.table_to_book(table, { sheet: "Pencapaian" });
+			XLSX.writeFile(workbook, fileName);
+		}
 
 		function renderAdminAchievementView() {
 			const allKtaRecords = getKtaRecords();
@@ -2614,6 +2644,9 @@ function renderDashboard(session) {
 				<section class="achievement-section">
 					<h3>Pencapaian Pembuatan KTA per Pelapor (Date Range)</h3>
 					<p class="subtitle">Menampilkan target, pencapaian, persentase, dan status Kelompok Jabatan PENGAWAS dan LEVEL 1 MGT pada Dashboard KTA berdasarkan date range aktif.</p>
+					<div class="inline-actions">
+						<button type="button" class="btn-small btn-edit" id="downloadKtaAchievementXlsx">Download Excel (.xlsx)</button>
+					</div>
 					<div class="table-wrap kta-performance-table-wrap">
 						${renderKtaReporterDateRangeAchievementTable(rangedKtaRecords, dateRangeStart, dateRangeEnd)}
 					</div>
@@ -2661,6 +2694,9 @@ function renderDashboard(session) {
 				<section class="achievement-section">
 					<h3>Pencapaian Pembuatan TTA per Pelapor (Date Range)</h3>
 					<p class="subtitle">Menampilkan target, pencapaian, persentase, dan status Kelompok Jabatan PENGAWAS dan LEVEL 1 MGT pada Dashboard TTA berdasarkan date range aktif.</p>
+					<div class="inline-actions">
+						<button type="button" class="btn-small btn-edit" id="downloadTtaAchievementXlsx">Download Excel (.xlsx)</button>
+					</div>
 					<div class="table-wrap kta-performance-table-wrap">
 						${renderTtaReporterDateRangeAchievementTable(rangedTtaRecords, dateRangeStart, dateRangeEnd)}
 					</div>
@@ -2782,6 +2818,20 @@ function renderDashboard(session) {
 					renderAdminAchievementView();
 				});
 			});
+
+			const downloadKtaAchievementXlsx = document.getElementById("downloadKtaAchievementXlsx");
+			if (downloadKtaAchievementXlsx) {
+				downloadKtaAchievementXlsx.addEventListener("click", () => {
+					downloadAchievementTableAsXlsx("ktaReporterDateRangeTable", buildAchievementExportFileName("KTA"));
+				});
+			}
+
+			const downloadTtaAchievementXlsx = document.getElementById("downloadTtaAchievementXlsx");
+			if (downloadTtaAchievementXlsx) {
+				downloadTtaAchievementXlsx.addEventListener("click", () => {
+					downloadAchievementTableAsXlsx("ttaReporterDateRangeTable", buildAchievementExportFileName("TTA"));
+				});
+			}
 
 		};
 
