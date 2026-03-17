@@ -2532,41 +2532,85 @@ function renderDashboard(session) {
 		const profile = getReporterProfile(session);
 		const reporterName = String(profile.namaPelapor || "").trim().toLowerCase();
 		const username = String(session.username || "").trim().toLowerCase();
+		let selectedMonthKey = "";
 
-		const ktaRecords = getKtaRecords().filter((record) => isRecordOwnedByReporter(record, reporterName, username));
-		const ttaRecords = getTtaRecords().filter((record) => isRecordOwnedByReporter(record, reporterName, username));
-		const ktaSummary = getAchievementStatusSummary(ktaRecords);
-		const ttaSummary = getAchievementStatusSummary(ttaRecords);
+		const ownKtaRecords = getKtaRecords().filter((record) => isRecordOwnedByReporter(record, reporterName, username));
+		const ownTtaRecords = getTtaRecords().filter((record) => isRecordOwnedByReporter(record, reporterName, username));
 
-		contentArea.innerHTML = `
-			<h2>Achievement</h2>
-			<p class="subtitle">Dashboard pencapaian bulanan KTA dan TTA milik user login, dengan detail status Open, Progress, dan Close.</p>
-			<div class="achievement-legend">
-				<span class="achievement-legend-item"><span class="achievement-legend-dot achievement-open"></span>Open</span>
-				<span class="achievement-legend-item"><span class="achievement-legend-dot achievement-progress"></span>Progress</span>
-				<span class="achievement-legend-item"><span class="achievement-legend-dot achievement-close"></span>Close</span>
-			</div>
-			<section class="achievement-section">
-				<h3>Ringkasan Status KTA</h3>
-				<div class="achievement-stat-grid">
-					<div class="achievement-stat-card"><h4>Open</h4><p>${ktaSummary.openCount}</p></div>
-					<div class="achievement-stat-card"><h4>Progress</h4><p>${ktaSummary.progressCount}</p></div>
-					<div class="achievement-stat-card"><h4>Close</h4><p>${ktaSummary.closeCount}</p></div>
-					<div class="achievement-stat-card"><h4>Total KTA</h4><p>${ktaSummary.totalCount}</p></div>
+		function applyUserMonthFilter(records) {
+			if (!selectedMonthKey) {
+				return records;
+			}
+
+			return records.filter((record) => toMonthKey(record.tanggalLaporan) === selectedMonthKey);
+		}
+
+		function renderUserAchievementView() {
+			const ktaRecords = applyUserMonthFilter(ownKtaRecords);
+			const ttaRecords = applyUserMonthFilter(ownTtaRecords);
+			const ktaSummary = getAchievementStatusSummary(ktaRecords);
+			const ttaSummary = getAchievementStatusSummary(ttaRecords);
+			const activeMonthText = selectedMonthKey ? getAchievementMonthLabel(selectedMonthKey) : "Semua Bulan";
+
+			contentArea.innerHTML = `
+				<h2>Achievement</h2>
+				<p class="subtitle">Dashboard pencapaian bulanan KTA dan TTA milik user login, dengan detail status Open, Progress, dan Close.</p>
+				<div class="form-grid" id="userAchievementMonthFilter">
+					<div class="field">
+						<label for="userAchievementMonth">Pilih Bulan</label>
+						<input id="userAchievementMonth" type="month" value="${selectedMonthKey}" />
+					</div>
+					<div class="inline-actions field-full">
+						<button type="button" class="btn-small btn-edit" id="userAchievementApplyMonth">Terapkan Bulan</button>
+						<button type="button" class="btn-small" id="userAchievementResetMonth">Reset Bulan</button>
+					</div>
 				</div>
-			</section>
-			${renderAchievementChart("Grafik Bulanan KTA", ktaRecords)}
-			<section class="achievement-section">
-				<h3>Ringkasan Status TTA</h3>
-				<div class="achievement-stat-grid">
-					<div class="achievement-stat-card"><h4>Open</h4><p>${ttaSummary.openCount}</p></div>
-					<div class="achievement-stat-card"><h4>Progress</h4><p>${ttaSummary.progressCount}</p></div>
-					<div class="achievement-stat-card"><h4>Close</h4><p>${ttaSummary.closeCount}</p></div>
-					<div class="achievement-stat-card"><h4>Total TTA</h4><p>${ttaSummary.totalCount}</p></div>
+				<div class="achievement-filter-info">
+					<p><strong>Bulan Aktif:</strong> ${escapeAchievementHtml(activeMonthText)}</p>
 				</div>
-			</section>
-			${renderAchievementChart("Grafik Bulanan TTA", ttaRecords)}
-		`;
+				<div class="achievement-legend">
+					<span class="achievement-legend-item"><span class="achievement-legend-dot achievement-open"></span>Open</span>
+					<span class="achievement-legend-item"><span class="achievement-legend-dot achievement-progress"></span>Progress</span>
+					<span class="achievement-legend-item"><span class="achievement-legend-dot achievement-close"></span>Close</span>
+				</div>
+				<section class="achievement-section">
+					<h3>Ringkasan Status KTA</h3>
+					<div class="achievement-stat-grid">
+						<div class="achievement-stat-card"><h4>Open</h4><p>${ktaSummary.openCount}</p></div>
+						<div class="achievement-stat-card"><h4>Progress</h4><p>${ktaSummary.progressCount}</p></div>
+						<div class="achievement-stat-card"><h4>Close</h4><p>${ktaSummary.closeCount}</p></div>
+						<div class="achievement-stat-card"><h4>Total KTA</h4><p>${ktaSummary.totalCount}</p></div>
+					</div>
+				</section>
+				${renderAchievementChart("Grafik Bulanan KTA", ktaRecords)}
+				<section class="achievement-section">
+					<h3>Ringkasan Status TTA</h3>
+					<div class="achievement-stat-grid">
+						<div class="achievement-stat-card"><h4>Open</h4><p>${ttaSummary.openCount}</p></div>
+						<div class="achievement-stat-card"><h4>Progress</h4><p>${ttaSummary.progressCount}</p></div>
+						<div class="achievement-stat-card"><h4>Close</h4><p>${ttaSummary.closeCount}</p></div>
+						<div class="achievement-stat-card"><h4>Total TTA</h4><p>${ttaSummary.totalCount}</p></div>
+					</div>
+				</section>
+				${renderAchievementChart("Grafik Bulanan TTA", ttaRecords)}
+			`;
+
+			const userAchievementMonth = document.getElementById("userAchievementMonth");
+			const userAchievementApplyMonth = document.getElementById("userAchievementApplyMonth");
+			const userAchievementResetMonth = document.getElementById("userAchievementResetMonth");
+
+			userAchievementApplyMonth.addEventListener("click", () => {
+				selectedMonthKey = String(userAchievementMonth.value || "").trim();
+				renderUserAchievementView();
+			});
+
+			userAchievementResetMonth.addEventListener("click", () => {
+				selectedMonthKey = "";
+				renderUserAchievementView();
+			});
+		}
+
+		renderUserAchievementView();
 	}
 
 	function renderAchievementContent() {
