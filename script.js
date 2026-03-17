@@ -2158,9 +2158,9 @@ function renderDashboard(session) {
 					<tr>
 						<th>Total</th>
 						<th>-</th>
-						<th>${rows.length} × ${weeklyTarget}</th>
+						<th>${rows.length} orang × ${weeklyTarget}</th>
 						<th>${activeWeekCount}</th>
-						<th>${totals.activeRangeTarget}</th>
+						<th>${rows.length} × ${weeklyTarget} × ${activeWeekCount} = ${totals.activeRangeTarget}</th>
 						<th>${totals.activeRangeAchievement}</th>
 						<th>${formatAchievementPercentage(totals.activeRangeAchievement, totals.activeRangeTarget)}</th>
 						<th><span class="task-status ${totalStatusClass}">${totalStatus}</span></th>
