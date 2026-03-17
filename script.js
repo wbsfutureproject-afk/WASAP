@@ -2529,18 +2529,42 @@ function renderDashboard(session) {
 	}
 
 	function renderUserAchievementContent() {
-		const ktaRecords = getKtaRecords();
-		const ttaRecords = getTtaRecords();
+		const profile = getReporterProfile(session);
+		const reporterName = String(profile.namaPelapor || "").trim().toLowerCase();
+		const username = String(session.username || "").trim().toLowerCase();
+
+		const ktaRecords = getKtaRecords().filter((record) => isRecordOwnedByReporter(record, reporterName, username));
+		const ttaRecords = getTtaRecords().filter((record) => isRecordOwnedByReporter(record, reporterName, username));
+		const ktaSummary = getAchievementStatusSummary(ktaRecords);
+		const ttaSummary = getAchievementStatusSummary(ttaRecords);
 
 		contentArea.innerHTML = `
 			<h2>Achievement</h2>
-			<p class="subtitle">Dashboard pencapaian bulanan KTA dan TTA dengan detail status Open, Progress, dan Close.</p>
+			<p class="subtitle">Dashboard pencapaian bulanan KTA dan TTA milik user login, dengan detail status Open, Progress, dan Close.</p>
 			<div class="achievement-legend">
 				<span class="achievement-legend-item"><span class="achievement-legend-dot achievement-open"></span>Open</span>
 				<span class="achievement-legend-item"><span class="achievement-legend-dot achievement-progress"></span>Progress</span>
 				<span class="achievement-legend-item"><span class="achievement-legend-dot achievement-close"></span>Close</span>
 			</div>
+			<section class="achievement-section">
+				<h3>Ringkasan Status KTA</h3>
+				<div class="achievement-stat-grid">
+					<div class="achievement-stat-card"><h4>Open</h4><p>${ktaSummary.openCount}</p></div>
+					<div class="achievement-stat-card"><h4>Progress</h4><p>${ktaSummary.progressCount}</p></div>
+					<div class="achievement-stat-card"><h4>Close</h4><p>${ktaSummary.closeCount}</p></div>
+					<div class="achievement-stat-card"><h4>Total KTA</h4><p>${ktaSummary.totalCount}</p></div>
+				</div>
+			</section>
 			${renderAchievementChart("Grafik Bulanan KTA", ktaRecords)}
+			<section class="achievement-section">
+				<h3>Ringkasan Status TTA</h3>
+				<div class="achievement-stat-grid">
+					<div class="achievement-stat-card"><h4>Open</h4><p>${ttaSummary.openCount}</p></div>
+					<div class="achievement-stat-card"><h4>Progress</h4><p>${ttaSummary.progressCount}</p></div>
+					<div class="achievement-stat-card"><h4>Close</h4><p>${ttaSummary.closeCount}</p></div>
+					<div class="achievement-stat-card"><h4>Total TTA</h4><p>${ttaSummary.totalCount}</p></div>
+				</div>
+			</section>
 			${renderAchievementChart("Grafik Bulanan TTA", ttaRecords)}
 		`;
 	}
