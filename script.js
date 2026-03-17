@@ -2070,7 +2070,7 @@ function renderDashboard(session) {
 		const combinedRecords = [...ktaRecords, ...ttaRecords];
 		const activeRange = resolveAchievementActiveDateRange(combinedRecords, startDate, endDate);
 		const activeWeekCount = getAchievementWeekSpan(activeRange.start, activeRange.end);
-		const weeklyTarget = 3;
+		const weeklyTarget = 1;
 		const activeRangeTarget = weeklyTarget * activeWeekCount;
 
 		const rows = users
