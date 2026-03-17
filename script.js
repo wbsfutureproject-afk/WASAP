@@ -2115,8 +2115,6 @@ function renderDashboard(session) {
 					<tr>
 						<td>${escapeAchievementHtml(item.reporterName)}</td>
 						<td>${escapeAchievementHtml(item.jobGroup)}</td>
-						<td>${item.weeklyTarget}</td>
-						<td>${item.activeWeekCount}</td>
 						<td>${item.activeRangeTarget}</td>
 						<td>${item.activeRangeAchievement}</td>
 						<td>${item.achievementPercentage.toFixed(2)}%</td>
@@ -2128,12 +2126,11 @@ function renderDashboard(session) {
 
 		const totals = rows.reduce(
 			(accumulator, item) => {
-				accumulator.weeklyTarget += item.weeklyTarget;
 				accumulator.activeRangeTarget += item.activeRangeTarget;
 				accumulator.activeRangeAchievement += item.activeRangeAchievement;
 				return accumulator;
 			},
-			{ weeklyTarget: 0, activeRangeTarget: 0, activeRangeAchievement: 0 },
+			{ activeRangeTarget: 0, activeRangeAchievement: 0 },
 		);
 
 		const totalStatus = totals.activeRangeAchievement >= totals.activeRangeTarget ? "Tercapai" : "Tidak Tercapai";
@@ -2145,9 +2142,7 @@ function renderDashboard(session) {
 					<tr>
 						<th>Nama Pelapor</th>
 						<th>Kelompok Jabatan</th>
-						<th>Target KTA / TTA Mingguan</th>
-						<th>Jumlah Minggu Aktif</th>
-						<th>Target Date Range Aktif</th>
+						<th>Target KTA / TTA (Date Range Aktif)</th>
 						<th>Pencapaian Date Range Aktif</th>
 						<th>% Pencapaian</th>
 						<th>Status</th>
@@ -2158,9 +2153,7 @@ function renderDashboard(session) {
 					<tr>
 						<th>Total</th>
 						<th>-</th>
-						<th>${rows.length} orang × ${weeklyTarget}</th>
-						<th>${activeWeekCount}</th>
-						<th>${rows.length} × ${weeklyTarget} × ${activeWeekCount} = ${totals.activeRangeTarget}</th>
+						<th>${totals.activeRangeTarget}</th>
 						<th>${totals.activeRangeAchievement}</th>
 						<th>${formatAchievementPercentage(totals.activeRangeAchievement, totals.activeRangeTarget)}</th>
 						<th><span class="task-status ${totalStatusClass}">${totalStatus}</span></th>
