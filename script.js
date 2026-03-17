@@ -1122,13 +1122,15 @@ function getTasklistCount(session) {
 
 	const keys = new Set();
 	getKtaRecords().forEach((item, index) => {
-		if (isOwnedByLogin(item) || (isAssignedAsPic(item.namaPic) && isOpenOrProgress(item.status))) {
+		if (!isOpenOrProgress(item.status)) return;
+		if (isOwnedByLogin(item) || isAssignedAsPic(item.namaPic)) {
 			keys.add(`kta-${index}`);
 		}
 	});
 	getTtaRecords().forEach((item, index) => {
+		if (!isOpenOrProgress(item.status)) return;
 		const assignedPic = item.namaPja || item.namaPic;
-		if (isOwnedByLogin(item) || (isAssignedAsPic(assignedPic) && isOpenOrProgress(item.status))) {
+		if (isOwnedByLogin(item) || isAssignedAsPic(assignedPic)) {
 			keys.add(`tta-${index}`);
 		}
 	});
