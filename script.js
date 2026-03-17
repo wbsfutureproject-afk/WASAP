@@ -2158,7 +2158,7 @@ function renderDashboard(session) {
 					<tr>
 						<th>Total</th>
 						<th>-</th>
-						<th>${totals.weeklyTarget}</th>
+						<th>${rows.length} × ${weeklyTarget}</th>
 						<th>${activeWeekCount}</th>
 						<th>${totals.activeRangeTarget}</th>
 						<th>${totals.activeRangeAchievement}</th>
