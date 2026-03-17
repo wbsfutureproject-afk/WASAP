@@ -1102,11 +1102,49 @@ function renderLogin() {
 	});
 }
 
+function getTasklistCount(session) {
+	const profile = getReporterProfile(session);
+	const sessionUsername = String(session.username || "").trim().toLowerCase();
+	const reporterName = String(profile.namaPelapor || "").trim().toLowerCase();
+	const loginFullName = String(getUserFullNameFromIdentifier(session.username) || "").trim().toLowerCase();
+	const loginMatcher = new Set([sessionUsername, reporterName, loginFullName].filter(Boolean));
+
+	function isOwnedByLogin(item) {
+		return loginMatcher.has(String(item.namaPelapor || "").trim().toLowerCase());
+	}
+	function isAssignedAsPic(picName) {
+		return loginMatcher.has(String(picName || "").trim().toLowerCase());
+	}
+	function isOpenOrProgress(statusValue) {
+		const s = String(statusValue || "").trim().toLowerCase();
+		return s === "open" || s === "progress";
+	}
+
+	const keys = new Set();
+	getKtaRecords().forEach((item, index) => {
+		if (isOwnedByLogin(item) || (isAssignedAsPic(item.namaPic) && isOpenOrProgress(item.status))) {
+			keys.add(`kta-${index}`);
+		}
+	});
+	getTtaRecords().forEach((item, index) => {
+		const assignedPic = item.namaPja || item.namaPic;
+		if (isOwnedByLogin(item) || (isAssignedAsPic(assignedPic) && isOpenOrProgress(item.status))) {
+			keys.add(`tta-${index}`);
+		}
+	});
+	return keys.size;
+}
+
 function renderDashboard(session) {
 	const menuItems = ROLE_MENUS[session.role] || [];
 	const menuHtml = menuItems
 		.map((item) => {
 			const isLogout = item === "Logout";
+			if (item === "Tasklist") {
+				const count = getTasklistCount(session);
+				const badge = count > 0 ? `<span class="nav-badge">${count}</span>` : "";
+				return `<button type="button" class="sidebar-item" data-menu="${item}">${item}${badge}</button>`;
+			}
 			return `<button type="button" class="sidebar-item ${isLogout ? "sidebar-logout" : ""}" data-menu="${item}">${item}</button>`;
 		})
 		.join("");
