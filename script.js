@@ -1733,11 +1733,11 @@ function renderDashboard(session) {
 		}
 
 		if (normalizedGroup === "PENGAWAS") {
-			return 2;
+			return 1;
 		}
 
 		if (normalizedGroup === "LEVEL 1 MGT") {
-			return 2;
+			return 1;
 		}
 
 		return 0;
@@ -1917,15 +1917,15 @@ function renderDashboard(session) {
 		const normalizedGroup = normalizeJobGroup(jobGroup);
 		if (normalizedGroup === "PENGAWAS") {
 			return {
-				monthlyTarget: 1 * daysInCurrentMonth,
-				yearlyTarget: 365,
+				monthlyTarget: 2 * daysInCurrentMonth,
+				yearlyTarget: 730,
 			};
 		}
 
 		if (normalizedGroup === "LEVEL 1 MGT") {
 			return {
-				monthlyTarget: 1 * daysInCurrentMonth,
-				yearlyTarget: 365,
+				monthlyTarget: 2 * daysInCurrentMonth,
+				yearlyTarget: 730,
 			};
 		}
 
@@ -2177,8 +2177,8 @@ function renderDashboard(session) {
 		const groupOrder = ["OPERATOR", "PENGAWAS", "LEVEL 1 MGT"];
 		const groupTargetBasis = {
 			OPERATOR: "1 / minggu (gabungan KTA+TTA)",
-			PENGAWAS: "KTA 2 + TTA 1 / hari",
-			"LEVEL 1 MGT": "KTA 2 + TTA 1 / hari",
+			PENGAWAS: "KTA 1 + TTA 2 / hari",
+			"LEVEL 1 MGT": "KTA 1 + TTA 2 / hari",
 		};
 
 		const grouped = new Map(groupOrder.map((group) => [group, { group, personCount: 0, target: 0, achievement: 0 }]));
