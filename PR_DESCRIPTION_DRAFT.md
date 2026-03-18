@@ -2,6 +2,8 @@
 
 This PR upgrades the WBS app into a stricter frontend-backend flow with token-based API access, adds full CRUD endpoints for core entities, improves submit UX reliability, and adds release/verification guardrails for safer deployment.
 
+It also updates the daily target composition for job groups `PENGAWAS` and `LEVEL 1 MGT` from `2 KTA + 1 TTA` to `1 KTA + 2 TTA` in both calculation logic and dashboard target labels.
+
 ## What Changed
 
 ### Backend
@@ -28,6 +30,10 @@ This PR upgrades the WBS app into a stricter frontend-backend flow with token-ba
   - User form
   - Department form
   - PIC form
+- Updated job-group target logic for `PENGAWAS` and `LEVEL 1 MGT`:
+  - KTA target/day: `2` -> `1`
+  - TTA target/day: `1` -> `2`
+  - Dashboard target basis text: `KTA 2 + TTA 1 / hari` -> `KTA 1 + TTA 2 / hari`
 
 ### DevOps / Config
 
@@ -50,6 +56,7 @@ This PR upgrades the WBS app into a stricter frontend-backend flow with token-ba
 - ✅ `npm run check`
 - ✅ `npm run smoke`
 - ✅ Auth guard verified (`401` on protected endpoint without token)
+- ✅ Frontend served script reflects new target rule (`KTA 1 + TTA 2 / hari`)
 
 ## Deployment Notes
 
@@ -81,3 +88,4 @@ For Render:
 - Confirm KTA/TTA + master-data CRUD works for create/update/delete from UI.
 - Confirm 401 handling returns user to login with proper message.
 - Confirm double-submit is prevented during slow requests.
+- Confirm dashboard target numbers for `PENGAWAS` and `LEVEL 1 MGT` follow `1 KTA + 2 TTA / hari`.
