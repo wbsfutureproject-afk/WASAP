@@ -246,6 +246,11 @@ button {
 	margin-top: 8px;
 }
 
+#ktaForm,
+#ttaForm {
+	width: 100%;
+}
+
 #userForm .field {
 	margin-bottom: 0;
 }
@@ -265,6 +270,59 @@ button {
 .inline-actions {
 	display: flex;
 	gap: 8px;
+}
+
+@media (max-width: 768px) {
+	body {
+		display: block;
+	}
+
+	.app {
+		max-width: 100%;
+		padding: 10px;
+	}
+
+	.card {
+		padding: 14px;
+	}
+
+	.content {
+		min-height: auto;
+	}
+
+	#ktaForm.form-grid,
+	#ttaForm.form-grid,
+	#directFixSection .form-grid,
+	#ttaDirectFixSection .form-grid {
+		grid-template-columns: 1fr;
+		gap: 8px;
+	}
+
+	#ktaForm .field,
+	#ttaForm .field {
+		margin-bottom: 10px;
+	}
+
+	#ktaForm input,
+	#ktaForm select,
+	#ktaForm textarea,
+	#ttaForm input,
+	#ttaForm select,
+	#ttaForm textarea {
+		font-size: 16px;
+		padding: 10px 12px;
+	}
+
+	#ktaForm .inline-actions,
+	#ttaForm .inline-actions {
+		flex-direction: column;
+		gap: 8px;
+	}
+
+	#ktaForm .inline-actions button,
+	#ttaForm .inline-actions button {
+		width: 100%;
+	}
 }
 
 .btn-secondary {
@@ -1086,5 +1144,39 @@ button {
 
 	.achievement-dist-count {
 		text-align: left;
+	}
+}
+
+@media (max-width: 768px) {
+	#ktaHistory,
+	#ttaHistory {
+		overflow-x: auto;
+		-webkit-overflow-scrolling: touch;
+	}
+
+	#ktaHistory .data-table,
+	#ttaHistory .data-table {
+		width: 100%;
+		min-width: 100%;
+		table-layout: fixed;
+		font-size: 12px;
+	}
+
+	#ktaHistory .data-table th,
+	#ktaHistory .data-table td,
+	#ttaHistory .data-table th,
+	#ttaHistory .data-table td {
+		padding: 7px 6px;
+		white-space: normal;
+		word-break: break-word;
+	}
+
+	#ktaHistory .data-table thead th,
+	#ktaHistory .data-table tfoot th,
+	#ktaHistory .data-table tfoot td,
+	#ttaHistory .data-table thead th,
+	#ttaHistory .data-table tfoot th,
+	#ttaHistory .data-table tfoot td {
+		position: static;
 	}
 }
