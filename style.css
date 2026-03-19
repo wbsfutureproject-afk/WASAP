@@ -281,6 +281,83 @@ button {
 	gap: 8px;
 }
 
+.leave-group-list {
+	margin-bottom: 12px;
+}
+
+.leave-group-buttons {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+}
+
+.leave-group-button {
+	width: auto;
+	padding: 8px 12px;
+	border: 1px solid var(--border);
+	background: #f9fafb;
+	color: var(--text);
+}
+
+.leave-group-button.active {
+	background: var(--primary);
+	border-color: var(--primary);
+	color: #fff;
+}
+
+.leave-user-list {
+	display: grid;
+	gap: 12px;
+	margin-bottom: 12px;
+}
+
+.leave-user-card {
+	border: 1px solid var(--border);
+	border-radius: 8px;
+	padding: 12px;
+	background: #f9fafb;
+}
+
+.leave-user-header h3 {
+	margin: 0 0 6px;
+	font-size: 16px;
+}
+
+.leave-user-header .subtitle {
+	margin-bottom: 10px;
+}
+
+.leave-period-controls {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 10px;
+}
+
+.leave-day-grid {
+	display: grid;
+	grid-template-columns: repeat(7, minmax(0, 1fr));
+	gap: 6px;
+}
+
+.leave-day-button {
+	padding: 8px 0;
+	border: 1px solid var(--border);
+	background: #fff;
+	color: var(--text);
+	font-weight: 700;
+}
+
+.leave-day-button.active {
+	background: var(--primary);
+	border-color: var(--primary);
+	color: #fff;
+}
+
+.leave-search-actions {
+	margin-top: 8px;
+	justify-content: flex-end;
+}
+
 .list-item {
 	display: flex;
 	justify-content: space-between;

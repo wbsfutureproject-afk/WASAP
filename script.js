@@ -3,6 +3,7 @@ const SESSION_KEY = "she_wbs_session";
 const DEPARTMENTS_KEY = "she_wbs_departments";
 const PICS_KEY = "she_wbs_pics";
 const USER_MASTER_KEY = "she_wbs_user_master";
+const LEAVE_SETTINGS_KEY = "she_wbs_leave_settings";
 const KTA_KEY = "she_wbs_kta";
 const TTA_KEY = "she_wbs_tta";
 const BACKEND_HEALTH_ENDPOINT = "/api/health";
@@ -64,12 +65,13 @@ const ROLE_MENUS = {
 		"My Profile",
 		"Achievement",
 		"Tasklist",
+		"Pengaturan Cuti",
 		"Daftar User",
 		"Daftar Departemen",
 		"Daftar PIC",
 		"Logout",
 	],
-	Admin: ["My Profile", "Achievement", "Tasklist", "Daftar User", "Logout"],
+	Admin: ["My Profile", "Achievement", "Tasklist", "Pengaturan Cuti", "Daftar User", "Logout"],
 	User: ["My Profile", "Achievement", "Tasklist", "Logout"],
 };
 
@@ -451,6 +453,7 @@ async function fetchMasterFromBackend() {
 			users: Array.isArray(data.users) ? data.users : [],
 			departments: Array.isArray(data.departments) ? data.departments : [],
 			pics: Array.isArray(data.pics) ? data.pics : [],
+			leaveSettings: Array.isArray(data.leaveSettings) ? data.leaveSettings : [],
 		};
 	} catch (error) {
 		return null;
@@ -480,6 +483,7 @@ function getLocalMasterData() {
 		users: readLocalArray(USER_MASTER_KEY),
 		departments: readLocalArray(DEPARTMENTS_KEY),
 		pics: readLocalArray(PICS_KEY),
+		leaveSettings: readLocalArray(LEAVE_SETTINGS_KEY),
 	};
 }
 
@@ -487,14 +491,26 @@ async function hydrateMasterFromBackend() {
 	const backendMaster = await fetchMasterFromBackend();
 	const localMaster = getLocalMasterData();
 
-	if (backendMaster && (backendMaster.users.length > 0 || backendMaster.departments.length > 0 || backendMaster.pics.length > 0)) {
+	if (
+		backendMaster &&
+		(backendMaster.users.length > 0 ||
+			backendMaster.departments.length > 0 ||
+			backendMaster.pics.length > 0 ||
+			backendMaster.leaveSettings.length > 0)
+	) {
 		writeLocalArray(USER_MASTER_KEY, backendMaster.users);
 		writeLocalArray(DEPARTMENTS_KEY, backendMaster.departments);
 		writeLocalArray(PICS_KEY, backendMaster.pics);
+		writeLocalArray(LEAVE_SETTINGS_KEY, backendMaster.leaveSettings);
 		return;
 	}
 
-	if (localMaster.users.length > 0 || localMaster.departments.length > 0 || localMaster.pics.length > 0) {
+	if (
+		localMaster.users.length > 0 ||
+		localMaster.departments.length > 0 ||
+		localMaster.pics.length > 0 ||
+		localMaster.leaveSettings.length > 0
+	) {
 		await pushMasterToBackend(localMaster);
 	}
 }
@@ -536,6 +552,7 @@ function setDepartments(departments) {
 		users: getManagedUsers(),
 		departments,
 		pics: getPics(),
+		leaveSettings: getLeaveSettings(),
 	});
 }
 
@@ -600,6 +617,7 @@ function setPics(pics) {
 		users: getManagedUsers(),
 		departments: getDepartments(),
 		pics,
+		leaveSettings: getLeaveSettings(),
 	});
 }
 
@@ -653,7 +671,153 @@ function setManagedUsers(users) {
 		users,
 		departments: getDepartments(),
 		pics: getPics(),
+		leaveSettings: getLeaveSettings(),
 	});
+}
+
+function normalizeLeaveSettings(rawLeaveSettings) {
+	if (!Array.isArray(rawLeaveSettings)) {
+		return [];
+	}
+
+	const normalizedMap = new Map();
+
+	rawLeaveSettings.forEach((item) => {
+		if (!item || typeof item !== "object") {
+			return;
+		}
+
+		const username = String(item.username || "").trim().toLowerCase();
+		if (!username) {
+			return;
+		}
+
+		const currentDates = normalizedMap.get(username) || new Set();
+		const dates = Array.isArray(item.dates) ? item.dates : [];
+		dates.forEach((dateValue) => {
+			const isoDate = String(dateValue || "").trim();
+			if (/^\d{4}-\d{2}-\d{2}$/.test(isoDate)) {
+				currentDates.add(isoDate);
+			}
+		});
+
+		normalizedMap.set(username, currentDates);
+	});
+
+	return Array.from(normalizedMap.entries())
+		.map(([username, dateSet]) => ({
+			username,
+			dates: Array.from(dateSet).sort((a, b) => a.localeCompare(b)),
+		}))
+		.filter((item) => item.dates.length > 0)
+		.sort((a, b) => a.username.localeCompare(b.username));
+}
+
+function getLeaveSettings() {
+	const raw = localStorage.getItem(LEAVE_SETTINGS_KEY);
+	if (!raw) {
+		return [];
+	}
+
+	try {
+		const parsed = JSON.parse(raw);
+		const normalized = normalizeLeaveSettings(parsed);
+		const normalizedRaw = JSON.stringify(normalized);
+		if (normalizedRaw !== raw) {
+			localStorage.setItem(LEAVE_SETTINGS_KEY, normalizedRaw);
+		}
+		return normalized;
+	} catch (error) {
+		localStorage.removeItem(LEAVE_SETTINGS_KEY);
+		return [];
+	}
+}
+
+function setLeaveSettings(leaveSettings) {
+	const normalized = normalizeLeaveSettings(leaveSettings);
+	localStorage.setItem(LEAVE_SETTINGS_KEY, JSON.stringify(normalized));
+	pushMasterToBackend({
+		users: getManagedUsers(),
+		departments: getDepartments(),
+		pics: getPics(),
+		leaveSettings: normalized,
+	});
+}
+
+function getLeaveDatesByUsername(username) {
+	const usernameKey = String(username || "").trim().toLowerCase();
+	if (!usernameKey) {
+		return new Set();
+	}
+
+	const leave = getLeaveSettings().find((item) => item.username === usernameKey);
+	return new Set(Array.isArray(leave?.dates) ? leave.dates : []);
+}
+
+function getDaysInMonth(year, monthNumber) {
+	return new Date(year, monthNumber, 0).getDate();
+}
+
+function getDaysInYear(year) {
+	return new Date(year, 11, 31).getDate();
+}
+
+function countLeaveDaysInMonth(leaveDatesSet, year, monthNumber) {
+	if (!(leaveDatesSet instanceof Set) || leaveDatesSet.size === 0) {
+		return 0;
+	}
+
+	const monthText = String(monthNumber).padStart(2, "0");
+	const prefix = `${year}-${monthText}-`;
+	let count = 0;
+
+	leaveDatesSet.forEach((dateValue) => {
+		if (String(dateValue).startsWith(prefix)) {
+			count += 1;
+		}
+	});
+
+	return count;
+}
+
+function countLeaveDaysInYear(leaveDatesSet, year) {
+	if (!(leaveDatesSet instanceof Set) || leaveDatesSet.size === 0) {
+		return 0;
+	}
+
+	const prefix = `${year}-`;
+	let count = 0;
+
+	leaveDatesSet.forEach((dateValue) => {
+		if (String(dateValue).startsWith(prefix)) {
+			count += 1;
+		}
+	});
+
+	return count;
+}
+
+function countLeaveDaysInRange(leaveDatesSet, startDate, endDate) {
+	if (!(leaveDatesSet instanceof Set) || leaveDatesSet.size === 0) {
+		return 0;
+	}
+
+	if (!/^\d{4}-\d{2}-\d{2}$/.test(String(startDate || "")) || !/^\d{4}-\d{2}-\d{2}$/.test(String(endDate || ""))) {
+		return 0;
+	}
+
+	const minDate = startDate <= endDate ? startDate : endDate;
+	const maxDate = startDate <= endDate ? endDate : startDate;
+	let count = 0;
+
+	leaveDatesSet.forEach((dateValue) => {
+		const isoDate = String(dateValue || "");
+		if (isoDate >= minDate && isoDate <= maxDate) {
+			count += 1;
+		}
+	});
+
+	return count;
 }
 
 function getKtaRecords() {
@@ -1752,7 +1916,8 @@ function renderDashboard(session) {
 		const now = new Date();
 		const currentYear = now.getFullYear();
 		const currentMonth = now.getMonth() + 1;
-		const daysInCurrentMonth = new Date(currentYear, currentMonth, 0).getDate();
+		const daysInCurrentMonth = getDaysInMonth(currentYear, currentMonth);
+		const daysInCurrentYear = getDaysInYear(currentYear);
 
 		const rows = users
 			.map((user) => {
@@ -1762,6 +1927,9 @@ function renderDashboard(session) {
 				const normalizedUsername = username.toLowerCase();
 				const normalizedGroup = normalizeJobGroup(user.kelompokJabatan);
 				const targetMultiplier = getKtaTargetMultiplierByJobGroup(normalizedGroup);
+				const leaveDatesSet = getLeaveDatesByUsername(username);
+				const activeMonthDays = Math.max(0, daysInCurrentMonth - countLeaveDaysInMonth(leaveDatesSet, currentYear, currentMonth));
+				const activeYearDays = Math.max(0, daysInCurrentYear - countLeaveDaysInYear(leaveDatesSet, currentYear));
 
 				let monthlyAchievement = 0;
 				let yearlyAchievement = 0;
@@ -1800,8 +1968,8 @@ function renderDashboard(session) {
 					}
 				});
 
-				const monthlyTarget = targetMultiplier * daysInCurrentMonth;
-				const yearlyTarget = targetMultiplier > 0 ? targetMultiplier * 365 : 0;
+				const monthlyTarget = targetMultiplier * activeMonthDays;
+				const yearlyTarget = targetMultiplier > 0 ? targetMultiplier * activeYearDays : 0;
 
 				return {
 					reporterName,
@@ -1913,19 +2081,19 @@ function renderDashboard(session) {
 		`;
 	}
 
-	function getTtaTargetByJobGroup(jobGroup, daysInCurrentMonth) {
+	function getTtaTargetByJobGroup(jobGroup, daysInCurrentMonth, daysInCurrentYear = 365) {
 		const normalizedGroup = normalizeJobGroup(jobGroup);
 		if (normalizedGroup === "PENGAWAS") {
 			return {
 				monthlyTarget: 2 * daysInCurrentMonth,
-				yearlyTarget: 730,
+				yearlyTarget: 2 * daysInCurrentYear,
 			};
 		}
 
 		if (normalizedGroup === "LEVEL 1 MGT") {
 			return {
 				monthlyTarget: 2 * daysInCurrentMonth,
-				yearlyTarget: 730,
+				yearlyTarget: 2 * daysInCurrentYear,
 			};
 		}
 
@@ -1944,7 +2112,8 @@ function renderDashboard(session) {
 		const now = new Date();
 		const currentYear = now.getFullYear();
 		const currentMonth = now.getMonth() + 1;
-		const daysInCurrentMonth = new Date(currentYear, currentMonth, 0).getDate();
+		const daysInCurrentMonth = getDaysInMonth(currentYear, currentMonth);
+		const daysInCurrentYear = getDaysInYear(currentYear);
 
 		const rows = users
 			.map((user) => {
@@ -1953,7 +2122,10 @@ function renderDashboard(session) {
 				const normalizedReporterName = reporterName.toLowerCase();
 				const normalizedUsername = username.toLowerCase();
 				const normalizedGroup = normalizeJobGroup(user.kelompokJabatan);
-				const targets = getTtaTargetByJobGroup(normalizedGroup, daysInCurrentMonth);
+				const leaveDatesSet = getLeaveDatesByUsername(username);
+				const activeMonthDays = Math.max(0, daysInCurrentMonth - countLeaveDaysInMonth(leaveDatesSet, currentYear, currentMonth));
+				const activeYearDays = Math.max(0, daysInCurrentYear - countLeaveDaysInYear(leaveDatesSet, currentYear));
+				const targets = getTtaTargetByJobGroup(normalizedGroup, activeMonthDays, activeYearDays);
 
 				let monthlyAchievement = 0;
 				let yearlyAchievement = 0;
@@ -2069,9 +2241,8 @@ function renderDashboard(session) {
 
 		const combinedRecords = [...ktaRecords, ...ttaRecords];
 		const activeRange = resolveAchievementActiveDateRange(combinedRecords, startDate, endDate);
-		const activeWeekCount = getAchievementWeekSpan(activeRange.start, activeRange.end);
+		const activeDayCount = getAchievementDaySpan(activeRange.start, activeRange.end);
 		const weeklyTarget = 1;
-		const activeRangeTarget = weeklyTarget * activeWeekCount;
 
 		const rows = users
 			.map((user) => {
@@ -2080,6 +2251,10 @@ function renderDashboard(session) {
 				const normalizedReporterName = reporterName.toLowerCase();
 				const normalizedUsername = username.toLowerCase();
 				const normalizedGroup = normalizeJobGroup(user.kelompokJabatan);
+				const leaveDatesSet = getLeaveDatesByUsername(username);
+				const leaveDaysInRange = countLeaveDaysInRange(leaveDatesSet, activeRange.start, activeRange.end);
+				const activeDaysWithoutLeave = Math.max(0, activeDayCount - leaveDaysInRange);
+				const activeRangeTarget = Math.ceil((weeklyTarget * activeDaysWithoutLeave) / 7);
 
 				let activeRangeAchievement = 0;
 
@@ -2095,7 +2270,6 @@ function renderDashboard(session) {
 					reporterName,
 					jobGroup: normalizedGroup || "-",
 					weeklyTarget,
-					activeWeekCount,
 					activeRangeTarget,
 					activeRangeAchievement,
 					achievementPercentage: getAchievementPercentage(activeRangeAchievement, activeRangeTarget),
@@ -2171,7 +2345,6 @@ function renderDashboard(session) {
 
 		const combinedRecords = [...ktaRecords, ...ttaRecords];
 		const activeRange = resolveAchievementActiveDateRange(combinedRecords, startDate, endDate);
-		const activeWeekCount = getAchievementWeekSpan(activeRange.start, activeRange.end);
 		const activeDayCount = getAchievementDaySpan(activeRange.start, activeRange.end);
 
 		const groupOrder = ["OPERATOR", "PENGAWAS", "LEVEL 1 MGT"];
@@ -2193,6 +2366,9 @@ function renderDashboard(session) {
 			const username = String(user.username || "").trim();
 			const normalizedReporterName = reporterName.toLowerCase();
 			const normalizedUsername = username.toLowerCase();
+			const leaveDatesSet = getLeaveDatesByUsername(username);
+			const leaveDaysInRange = countLeaveDaysInRange(leaveDatesSet, activeRange.start, activeRange.end);
+			const activeDaysWithoutLeave = Math.max(0, activeDayCount - leaveDaysInRange);
 
 			const ktaAchievement = ktaRecords.reduce(
 				(accumulator, record) =>
@@ -2205,7 +2381,7 @@ function renderDashboard(session) {
 				0,
 			);
 
-			const perUserTarget = normalizedGroup === "OPERATOR" ? 1 * activeWeekCount : 3 * activeDayCount;
+			const perUserTarget = normalizedGroup === "OPERATOR" ? Math.ceil(activeDaysWithoutLeave / 7) : 3 * activeDaysWithoutLeave;
 
 			const groupData = grouped.get(normalizedGroup);
 			groupData.personCount += 1;
@@ -2311,6 +2487,9 @@ function renderDashboard(session) {
 				const normalizedReporterName = reporterName.toLowerCase();
 				const normalizedUsername = username.toLowerCase();
 				const normalizedGroup = normalizeJobGroup(user.kelompokJabatan);
+				const leaveDatesSet = getLeaveDatesByUsername(username);
+				const leaveDaysInRange = countLeaveDaysInRange(leaveDatesSet, activeRange.start, activeRange.end);
+				const activeDaysWithoutLeave = Math.max(0, activeDayCount - leaveDaysInRange);
 
 				let achievementCount = 0;
 
@@ -2327,7 +2506,7 @@ function renderDashboard(session) {
 					achievementCount += 1;
 				});
 
-				const targetCount = getKtaTargetMultiplierByJobGroup(normalizedGroup) * activeDayCount;
+				const targetCount = getKtaTargetMultiplierByJobGroup(normalizedGroup) * activeDaysWithoutLeave;
 				const shortage = Math.max(0, targetCount - achievementCount);
 				const isAchieved = achievementCount >= targetCount;
 
@@ -2424,6 +2603,9 @@ function renderDashboard(session) {
 				const normalizedReporterName = reporterName.toLowerCase();
 				const normalizedUsername = username.toLowerCase();
 				const normalizedGroup = normalizeJobGroup(user.kelompokJabatan);
+				const leaveDatesSet = getLeaveDatesByUsername(username);
+				const leaveDaysInRange = countLeaveDaysInRange(leaveDatesSet, activeRange.start, activeRange.end);
+				const activeDaysWithoutLeave = Math.max(0, activeDayCount - leaveDaysInRange);
 
 				let achievementCount = 0;
 
@@ -2440,7 +2622,7 @@ function renderDashboard(session) {
 					achievementCount += 1;
 				});
 
-				const targetCount = getTtaTargetByJobGroup(normalizedGroup, activeDayCount).monthlyTarget;
+				const targetCount = getTtaTargetByJobGroup(normalizedGroup, activeDaysWithoutLeave, activeDaysWithoutLeave).monthlyTarget;
 				const shortage = Math.max(0, targetCount - achievementCount);
 				const isAchieved = achievementCount >= targetCount;
 
@@ -4131,6 +4313,354 @@ function renderDashboard(session) {
 		renderTtaHistory();
 	}
 
+	function renderLeaveSettingsContent() {
+		if (session.role !== "Super Admin" && session.role !== "Admin") {
+			renderDefaultContent("Pengaturan Cuti");
+			return;
+		}
+
+		const users = getManagedUsers();
+		const normalizeGroupKey = (value) =>
+			String(value || "")
+				.trim()
+				.toUpperCase()
+				.replace(/\s+/g, " ");
+		const preferredGroupOrder = ["OPERATOR", "PENGAWAS", "LEVEL 1 MGT"];
+
+		const availableGroups = Array.from(
+			new Set(
+				users
+					.map((item) => normalizeGroupKey(item.kelompokJabatan))
+					.filter(Boolean),
+			),
+		).sort((a, b) => {
+			const aIndex = preferredGroupOrder.indexOf(a);
+			const bIndex = preferredGroupOrder.indexOf(b);
+			if (aIndex >= 0 && bIndex >= 0) {
+				return aIndex - bIndex;
+			}
+			if (aIndex >= 0) {
+				return -1;
+			}
+			if (bIndex >= 0) {
+				return 1;
+			}
+			return a.localeCompare(b);
+		});
+
+		if (availableGroups.length === 0) {
+			contentArea.innerHTML = `
+				<h2>Pengaturan Cuti</h2>
+				<p class="subtitle">Atur tanggal cuti user per kelompok jabatan agar target KTA/TTA pada tanggal tersebut tidak dihitung.</p>
+				<p class="error">Belum ada data user dengan Kelompok Jabatan. Tambahkan user terlebih dahulu pada menu Daftar User.</p>
+			`;
+			return;
+		}
+
+		const leaveMap = new Map();
+		getLeaveSettings().forEach((item) => {
+			leaveMap.set(item.username, new Set(Array.isArray(item.dates) ? item.dates : []));
+		});
+
+		users.forEach((user) => {
+			const key = String(user.username || "").trim().toLowerCase();
+			if (!key) {
+				return;
+			}
+
+			if (!leaveMap.has(key)) {
+				leaveMap.set(key, new Set());
+			}
+		});
+
+		let selectedGroup = "";
+		let usernameSearch = "";
+		const now = new Date();
+		const currentYear = now.getFullYear();
+		const currentMonth = now.getMonth() + 1;
+		const yearOptions = Array.from({ length: 6 }, (_, index) => currentYear - 2 + index);
+		const monthOptions = [
+			{ value: 1, label: "Januari" },
+			{ value: 2, label: "Februari" },
+			{ value: 3, label: "Maret" },
+			{ value: 4, label: "April" },
+			{ value: 5, label: "Mei" },
+			{ value: 6, label: "Juni" },
+			{ value: 7, label: "Juli" },
+			{ value: 8, label: "Agustus" },
+			{ value: 9, label: "September" },
+			{ value: 10, label: "Oktober" },
+			{ value: 11, label: "November" },
+			{ value: 12, label: "Desember" },
+		];
+
+		const calendarStateByUser = new Map();
+		users.forEach((user) => {
+			const key = String(user.username || "").trim().toLowerCase();
+			if (!key) {
+				return;
+			}
+
+			calendarStateByUser.set(key, {
+				year: currentYear,
+				month: currentMonth,
+			});
+		});
+
+		contentArea.innerHTML = `
+			<h2>Pengaturan Cuti</h2>
+			<p class="subtitle">Pilih kelompok jabatan, lalu atur tahun, bulan, dan tanggal cuti tiap user. Tanggal cuti yang dipilih tidak dihitung sebagai target KTA/TTA.</p>
+			<div id="leaveGroupList" class="leave-group-list"></div>
+			<p id="leaveError" class="error"></p>
+			<p id="leaveSuccess" class="subtitle"></p>
+			<div id="leaveUserList" class="leave-user-list"></div>
+			<div class="inline-actions">
+				<button type="button" id="saveLeaveSettingsBtn" class="btn-primary">Simpan Pengaturan Cuti</button>
+			</div>
+		`;
+
+		const leaveGroupList = document.getElementById("leaveGroupList");
+		const leaveUserList = document.getElementById("leaveUserList");
+		const leaveError = document.getElementById("leaveError");
+		const leaveSuccess = document.getElementById("leaveSuccess");
+		const saveLeaveSettingsBtn = document.getElementById("saveLeaveSettingsBtn");
+
+		function getUserLeaveSet(username) {
+			const key = String(username || "").trim().toLowerCase();
+			if (!key) {
+				return new Set();
+			}
+
+			if (!leaveMap.has(key)) {
+				leaveMap.set(key, new Set());
+			}
+
+			return leaveMap.get(key);
+		}
+
+		function getUsersBySelectedGroup() {
+			if (!selectedGroup) {
+				return [];
+			}
+
+			const normalizedSearch = String(usernameSearch || "").trim().toLowerCase();
+			if (!normalizedSearch) {
+				return [];
+			}
+
+			const filteredUsers = users
+				.filter((item) => normalizeGroupKey(item.kelompokJabatan) === selectedGroup)
+				.sort((a, b) => {
+					const nameA = String(a.namaLengkap || a.username || "");
+					const nameB = String(b.namaLengkap || b.username || "");
+					return nameA.localeCompare(nameB);
+				});
+
+			return filteredUsers.filter((item) => String(item.username || "").trim().toLowerCase() === normalizedSearch);
+		}
+
+		function renderFilterControls() {
+			const usernamesInSelectedGroup = users
+				.filter((item) => normalizeGroupKey(item.kelompokJabatan) === selectedGroup)
+				.map((item) => String(item.username || "").trim())
+				.filter(Boolean)
+				.sort((a, b) => a.localeCompare(b));
+
+			leaveGroupList.innerHTML = `
+				<div class="form-grid">
+					<div class="field">
+						<label for="leaveGroupSelect">Kelompok Jabatan</label>
+						<select id="leaveGroupSelect">
+							<option value="">Pilih Kelompok Jabatan</option>
+							${availableGroups.map((group) => `<option value="${group}" ${group === selectedGroup ? "selected" : ""}>${group}</option>`).join("")}
+						</select>
+					</div>
+					<div class="field">
+						<label for="leaveUsernameSearch">Cari User (Username)</label>
+						<input id="leaveUsernameSearch" type="text" value="${usernameSearch}" list="leaveUsernameOptions" placeholder="Masukkan username user terdaftar" ${selectedGroup ? "" : "disabled"} />
+						<datalist id="leaveUsernameOptions">
+							${usernamesInSelectedGroup.map((username) => `<option value="${username}"></option>`).join("")}
+						</datalist>
+						<div class="inline-actions leave-search-actions">
+							<button type="button" id="leaveResetSearchBtn" class="btn-small" ${selectedGroup ? "" : "disabled"}>Reset Cari User</button>
+						</div>
+					</div>
+				</div>
+			`;
+
+			const leaveGroupSelect = document.getElementById("leaveGroupSelect");
+			const leaveUsernameSearch = document.getElementById("leaveUsernameSearch");
+			const leaveResetSearchBtn = document.getElementById("leaveResetSearchBtn");
+
+			leaveGroupSelect.addEventListener("change", () => {
+				selectedGroup = String(leaveGroupSelect.value || "").trim();
+				usernameSearch = "";
+				leaveError.textContent = "";
+				leaveSuccess.textContent = "";
+				renderFilterControls();
+				renderLeaveUsers();
+			});
+
+			if (leaveUsernameSearch) {
+				leaveUsernameSearch.addEventListener("input", () => {
+					usernameSearch = String(leaveUsernameSearch.value || "").trim();
+					leaveError.textContent = "";
+					leaveSuccess.textContent = "";
+					renderLeaveUsers();
+				});
+			}
+
+			if (leaveResetSearchBtn) {
+				leaveResetSearchBtn.addEventListener("click", () => {
+					usernameSearch = "";
+					leaveError.textContent = "";
+					leaveSuccess.textContent = "";
+					renderFilterControls();
+					renderLeaveUsers();
+				});
+			}
+		}
+
+		function buildLeaveDate(year, month, day) {
+			const monthText = String(month).padStart(2, "0");
+			const dayText = String(day).padStart(2, "0");
+			return `${year}-${monthText}-${dayText}`;
+		}
+
+		function renderLeaveUsers() {
+			if (!selectedGroup) {
+				leaveUserList.innerHTML = `<p class="subtitle">Pilih Kelompok Jabatan terlebih dahulu, lalu cari user dengan username.</p>`;
+				return;
+			}
+
+			if (!String(usernameSearch || "").trim()) {
+				leaveUserList.innerHTML = `<p class="subtitle">Isi kolom Cari User (Username) untuk menampilkan user pada kelompok jabatan ${selectedGroup}.</p>`;
+				return;
+			}
+
+			const selectedUsers = getUsersBySelectedGroup();
+			if (selectedUsers.length === 0) {
+				const searchText = String(usernameSearch || "").trim();
+				leaveUserList.innerHTML = `<p class="subtitle">User dengan username "${searchText}" tidak ditemukan pada kelompok jabatan ${selectedGroup}.</p>`;
+				return;
+			}
+
+			leaveUserList.innerHTML = selectedUsers
+				.map((user) => {
+					const username = String(user.username || "").trim().toLowerCase();
+					const state = calendarStateByUser.get(username) || { year: currentYear, month: currentMonth };
+					const year = Number(state.year) || currentYear;
+					const month = Number(state.month) || currentMonth;
+					const daysInMonth = getDaysInMonth(year, month);
+					const leaveSet = getUserLeaveSet(username);
+
+					const dayButtons = Array.from({ length: daysInMonth }, (_, index) => {
+						const day = index + 1;
+						const isoDate = buildLeaveDate(year, month, day);
+						const isActive = leaveSet.has(isoDate);
+						return `<button type="button" class="leave-day-button ${isActive ? "active" : ""}" data-username="${username}" data-date="${isoDate}">${day}</button>`;
+					}).join("");
+
+					const monthlySelectedCount = Array.from(leaveSet).filter((item) => item.startsWith(`${year}-${String(month).padStart(2, "0")}-`)).length;
+
+					return `
+						<section class="leave-user-card">
+							<div class="leave-user-header">
+								<div>
+									<h3>${String(user.namaLengkap || user.username || "-")}</h3>
+									<p class="subtitle">Username: ${user.username || "-"} • Jabatan: ${user.jabatan || "-"}</p>
+								</div>
+							</div>
+							<div class="leave-period-controls">
+								<div class="field">
+									<label>Tahun</label>
+									<select class="leave-year-select" data-username="${username}">
+										${yearOptions.map((item) => `<option value="${item}" ${item === year ? "selected" : ""}>${item}</option>`).join("")}
+									</select>
+								</div>
+								<div class="field">
+									<label>Bulan</label>
+									<select class="leave-month-select" data-username="${username}">
+										${monthOptions
+											.map((item) => `<option value="${item.value}" ${item.value === month ? "selected" : ""}>${item.label}</option>`)
+											.join("")}
+									</select>
+								</div>
+							</div>
+							<p class="subtitle">Tanggal cuti terpilih pada periode ini: ${monthlySelectedCount}</p>
+							<div class="leave-day-grid">${dayButtons}</div>
+						</section>
+					`;
+				})
+				.join("");
+
+			leaveUserList.querySelectorAll(".leave-year-select, .leave-month-select").forEach((selectElement) => {
+				selectElement.addEventListener("change", () => {
+					const username = String(selectElement.dataset.username || "").trim().toLowerCase();
+					if (!username) {
+						return;
+					}
+
+					const userCard = selectElement.closest(".leave-user-card");
+					if (!userCard) {
+						return;
+					}
+
+					const yearSelect = userCard.querySelector(`.leave-year-select[data-username="${username}"]`);
+					const monthSelect = userCard.querySelector(`.leave-month-select[data-username="${username}"]`);
+					const selectedYear = Number(yearSelect?.value || currentYear);
+					const selectedMonth = Number(monthSelect?.value || currentMonth);
+
+					calendarStateByUser.set(username, {
+						year: selectedYear,
+						month: selectedMonth,
+					});
+					renderLeaveUsers();
+				});
+			});
+
+			leaveUserList.querySelectorAll(".leave-day-button").forEach((button) => {
+				button.addEventListener("click", () => {
+					const username = String(button.dataset.username || "").trim().toLowerCase();
+					const dateValue = String(button.dataset.date || "").trim();
+					if (!username || !/^\d{4}-\d{2}-\d{2}$/.test(dateValue)) {
+						return;
+					}
+
+					const leaveSet = getUserLeaveSet(username);
+					if (leaveSet.has(dateValue)) {
+						leaveSet.delete(dateValue);
+					} else {
+						leaveSet.add(dateValue);
+					}
+
+					renderLeaveUsers();
+				});
+			});
+		}
+
+		saveLeaveSettingsBtn.addEventListener("click", async () => {
+			leaveError.textContent = "";
+			leaveSuccess.textContent = "";
+
+			await runWithButtonLoading(saveLeaveSettingsBtn, "Menyimpan...", async () => {
+				const normalizedPayload = Array.from(leaveMap.entries())
+					.map(([username, dateSet]) => ({
+						username,
+						dates: Array.from(dateSet || []).sort((a, b) => a.localeCompare(b)),
+					}))
+					.filter((item) => item.dates.length > 0)
+					.sort((a, b) => a.username.localeCompare(b.username));
+
+				setLeaveSettings(normalizedPayload);
+				leaveSuccess.textContent = "Pengaturan cuti berhasil disimpan.";
+			});
+		});
+
+		renderFilterControls();
+		renderLeaveUsers();
+	}
+
 	function renderUserContent() {
 		const departments = getDepartments();
 		const jobGroupOptions = ["PENGAWAS", "OPERATOR", "LEVEL 1 MGT"];
@@ -5069,6 +5599,11 @@ function renderDashboard(session) {
 
 		if (menuName === "Daftar User") {
 			renderUserContent();
+			return;
+		}
+
+		if (menuName === "Pengaturan Cuti") {
+			renderLeaveSettingsContent();
 			return;
 		}
 
