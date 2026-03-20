@@ -62,6 +62,10 @@ function issueAuthToken(account) {
 	return token;
 }
 
+function isSuperAdminAccount(account) {
+	return String(account?.role || "") === "Super Admin";
+}
+
 async function ensureStorageFile() {
 	await fs.mkdir(dataDir, { recursive: true });
 
@@ -347,10 +351,13 @@ app.use("/api", (req, res, next) => {
 	}
 
 	const token = authHeader.slice(7).trim();
-	if (!token || !issuedTokens.has(token)) {
+	const authAccount = issuedTokens.get(token);
+	if (!token || !authAccount) {
 		res.status(401).json({ message: "Unauthorized. Token tidak valid atau expired." });
 		return;
 	}
+
+	req.auth = authAccount;
 
 	next();
 });
@@ -548,6 +555,11 @@ app.put("/api/tta/:noId", async (req, res) => {
 });
 
 app.delete("/api/tta/:noId", async (req, res) => {
+	if (!isSuperAdminAccount(req.auth)) {
+		res.status(403).json({ message: "Forbidden. Hanya Super Admin yang dapat menghapus record TTA." });
+		return;
+	}
+
 	const noId = String(req.params.noId || "").trim();
 	if (!noId) {
 		res.status(400).json({ message: "Parameter noId wajib diisi." });

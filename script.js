@@ -3101,88 +3101,118 @@ function renderDashboard(session) {
 			<h2>Form KTA</h2>
 			<p class="subtitle">Input data KTA sesuai temuan lapangan.</p>
 			<form id="ktaForm" class="form-grid" novalidate>
-				<div class="field">
-					<label for="ktaNoId">No ID</label>
-					<input id="ktaNoId" name="noId" type="text" value="${noId}" readonly />
-				</div>
-				<div class="field">
-					<label for="ktaTanggalLaporan">Tanggal Laporan</label>
-					<input id="ktaTanggalLaporan" name="tanggalLaporan" type="date" value="${reportDate}" readonly />
-				</div>
-				<div class="field">
-					<label for="ktaNamaPelapor">Nama Pelapor</label>
-					<input id="ktaNamaPelapor" name="namaPelapor" type="text" value="${profile.namaPelapor}" readonly />
-				</div>
-				<div class="field">
-					<label for="ktaJabatan">Jabatan</label>
-					<input id="ktaJabatan" name="jabatan" type="text" value="${profile.jabatan}" readonly />
-				</div>
-				<div class="field">
-					<label for="ktaDepartemen">Departemen</label>
-					<input id="ktaDepartemen" name="departemen" type="text" value="${profile.departemen}" readonly />
-				</div>
-				<div class="field">
-					<label for="ktaPerusahaan">Perusahaan</label>
-					<input id="ktaPerusahaan" name="perusahaan" type="text" value="${profile.perusahaan}" readonly />
-				</div>
-				<div class="field">
-					<label for="ktaTanggalTemuan">Tanggal Temuan</label>
-					<input id="ktaTanggalTemuan" name="tanggalTemuan" type="date" required />
-				</div>
-				<div class="field">
-					<label for="ktaKategoriTemuan">Kategori Temuan</label>
-					<select id="ktaKategoriTemuan" name="kategoriTemuan" required>
-						<option value="">Pilih Kategori Temuan</option>
-						${kategoriTemuanOptions.map((item) => `<option value="${item}">${item}</option>`).join("")}
-					</select>
-				</div>
-				<div class="field">
-					<label for="ktaLokasiTemuan">Lokasi Temuan</label>
-					<select id="ktaLokasiTemuan" name="lokasiTemuan" required>
-						<option value="">Pilih Lokasi Temuan</option>
-						${lokasiTemuanOptions.map((item) => `<option value="${item}">${item}</option>`).join("")}
-					</select>
-				</div>
-				<div class="field">
-					<label for="ktaDetailLokasi">Detail Lokasi Temuan</label>
-					<input id="ktaDetailLokasi" name="detailLokasiTemuan" type="text" required />
-				</div>
-				<div class="field">
-					<label for="ktaRiskLevel">Risk Level</label>
-					<select id="ktaRiskLevel" name="riskLevel" required>
-						<option value="">Pilih Risk Level</option>
-						<option value="Critical">Critical</option>
-						<option value="High">High</option>
-						<option value="Medium">Medium</option>
-						<option value="Low">Low</option>
-					</select>
-				</div>
-				<div class="field">
-					<label for="ktaPic">Nama PIC</label>
-					<select id="ktaPic" name="namaPic" required>
-						<option value="">Pilih PIC</option>
-						${picOptions.map((item) => `<option value="${item}">${item}</option>`).join("")}
-					</select>
-				</div>
-				<div class="field field-full">
-					<label for="ktaDetailTemuan">Detail Temuan</label>
-					<textarea id="ktaDetailTemuan" name="detailTemuan" rows="3" required></textarea>
-				</div>
-				<div class="field field-full">
-					<label for="ktaFotoTemuan">Foto Temuan (Opsional)</label>
-					<input id="ktaFotoTemuan" name="fotoTemuan" type="file" accept="image/*" multiple />
-				</div>
-				<div class="field">
-					<label for="ktaPerbaikanLangsung">Perbaikan Langsung</label>
-					<select id="ktaPerbaikanLangsung" name="perbaikanLangsung" required>
-						<option value="">Pilih</option>
-						<option value="Ya">Ya</option>
-						<option value="Tidak">Tidak</option>
-					</select>
-				</div>
+				<section class="form-section field-full">
+					<div class="form-section-header">
+						<h3 class="form-section-title">Informasi Pelapor</h3>
+						<p class="form-section-note">Data ini diisi otomatis dari akun yang sedang login.</p>
+					</div>
+					<div class="form-section-grid form-grid">
+						<div class="field">
+							<label for="ktaNoId">No ID</label>
+							<input id="ktaNoId" name="noId" type="text" value="${noId}" readonly />
+						</div>
+						<div class="field">
+							<label for="ktaTanggalLaporan">Tanggal Laporan</label>
+							<input id="ktaTanggalLaporan" name="tanggalLaporan" type="date" value="${reportDate}" readonly />
+						</div>
+						<div class="field">
+							<label for="ktaNamaPelapor">Nama Pelapor</label>
+							<input id="ktaNamaPelapor" name="namaPelapor" type="text" value="${profile.namaPelapor}" readonly />
+						</div>
+						<div class="field">
+							<label for="ktaJabatan">Jabatan</label>
+							<input id="ktaJabatan" name="jabatan" type="text" value="${profile.jabatan}" readonly />
+						</div>
+						<div class="field">
+							<label for="ktaDepartemen">Departemen</label>
+							<input id="ktaDepartemen" name="departemen" type="text" value="${profile.departemen}" readonly />
+						</div>
+						<div class="field">
+							<label for="ktaPerusahaan">Perusahaan</label>
+							<input id="ktaPerusahaan" name="perusahaan" type="text" value="${profile.perusahaan}" readonly />
+						</div>
+					</div>
+				</section>
 
-				<div id="directFixSection" class="field-full hidden">
-					<div class="form-grid">
+				<section class="form-section field-full">
+					<div class="form-section-header">
+						<h3 class="form-section-title">Detail Temuan</h3>
+						<p class="form-section-note">Lengkapi informasi lokasi, kategori, dan deskripsi temuan.</p>
+					</div>
+					<div class="form-section-grid form-grid">
+						<div class="field">
+							<label for="ktaTanggalTemuan">Tanggal Temuan</label>
+							<input id="ktaTanggalTemuan" name="tanggalTemuan" type="date" required />
+						</div>
+						<div class="field">
+							<label for="ktaKategoriTemuan">Kategori Temuan</label>
+							<select id="ktaKategoriTemuan" name="kategoriTemuan" required>
+								<option value="">Pilih Kategori Temuan</option>
+								${kategoriTemuanOptions.map((item) => `<option value="${item}">${item}</option>`).join("")}
+							</select>
+						</div>
+						<div class="field">
+							<label for="ktaLokasiTemuan">Lokasi Temuan</label>
+							<select id="ktaLokasiTemuan" name="lokasiTemuan" required>
+								<option value="">Pilih Lokasi Temuan</option>
+								${lokasiTemuanOptions.map((item) => `<option value="${item}">${item}</option>`).join("")}
+							</select>
+						</div>
+						<div class="field">
+							<label for="ktaDetailLokasi">Detail Lokasi Temuan</label>
+							<input id="ktaDetailLokasi" name="detailLokasiTemuan" type="text" required />
+						</div>
+						<div class="field">
+							<label for="ktaRiskLevel">Risk Level</label>
+							<select id="ktaRiskLevel" name="riskLevel" required>
+								<option value="">Pilih Risk Level</option>
+								<option value="Critical">Critical</option>
+								<option value="High">High</option>
+								<option value="Medium">Medium</option>
+								<option value="Low">Low</option>
+							</select>
+						</div>
+						<div class="field">
+							<label for="ktaPic">Nama PIC</label>
+							<select id="ktaPic" name="namaPic" required>
+								<option value="">Pilih PIC</option>
+								${picOptions.map((item) => `<option value="${item}">${item}</option>`).join("")}
+							</select>
+						</div>
+						<div class="field field-full">
+							<label for="ktaDetailTemuan">Detail Temuan</label>
+							<textarea id="ktaDetailTemuan" name="detailTemuan" rows="3" required></textarea>
+						</div>
+						<div class="field field-full">
+							<label for="ktaFotoTemuan">Foto Temuan (Opsional)</label>
+							<input id="ktaFotoTemuan" name="fotoTemuan" type="file" accept="image/*" multiple />
+						</div>
+					</div>
+				</section>
+
+				<section class="form-section field-full">
+					<div class="form-section-header">
+						<h3 class="form-section-title">Tindak Lanjut</h3>
+						<p class="form-section-note">Isi perbaikan langsung, tindak lanjut, dan status penyelesaian.</p>
+					</div>
+					<div class="form-section-grid form-grid">
+						<div class="field">
+							<label for="ktaPerbaikanLangsung">Perbaikan Langsung</label>
+							<select id="ktaPerbaikanLangsung" name="perbaikanLangsung" required>
+								<option value="">Pilih</option>
+								<option value="Ya">Ya</option>
+								<option value="Tidak">Tidak</option>
+							</select>
+						</div>
+					</div>
+				</section>
+
+				<div id="directFixSection" class="form-section field-full hidden">
+					<div class="form-section-header">
+						<h3 class="form-section-title">Detail Perbaikan</h3>
+						<p class="form-section-note">Bagian ini muncul saat perbaikan langsung dilakukan.</p>
+					</div>
+					<div class="form-section-grid form-grid">
 						<div class="field field-full">
 							<label for="ktaTindakanPerbaikan">Tindakan Perbaikan</label>
 							<textarea id="ktaTindakanPerbaikan" name="tindakanPerbaikan" rows="3"></textarea>
@@ -3275,33 +3305,48 @@ function renderDashboard(session) {
 		}
 
 		function showKtaDetail(record) {
+			const statusBadgeMarkup = (() => {
+				const label = String(record.status || "-").trim() || "-";
+				const modifier = label === "-" ? "status-empty" : `status-${label.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
+				return `<span class="tta-status-badge ${modifier}">${label}</span>`;
+			})();
+
 			ktaDetailPanel.classList.remove("hidden");
 			ktaDetailPanel.innerHTML = `
 				<div class="detail-header">
-					<h3>Detail KTA - ${record.noId}</h3>
+					<div>
+						<h3>Detail KTA</h3>
+						<p class="detail-meta">${record.noId}</p>
+					</div>
 					<button type="button" id="closeKtaDetail" class="btn-small">Tutup</button>
 				</div>
 				<div class="detail-grid">
-					<p><strong>Tanggal Laporan:</strong> ${record.tanggalLaporan}</p>
-					<p><strong>Nama Pelapor:</strong> ${record.namaPelapor}</p>
-					<p><strong>Jabatan:</strong> ${record.jabatan}</p>
-					<p><strong>Departemen:</strong> ${record.departemen}</p>
-					<p><strong>Perusahaan:</strong> ${record.perusahaan || "-"}</p>
-					<p><strong>Tanggal Temuan:</strong> ${record.tanggalTemuan}</p>
-					<p><strong>Kategori Temuan:</strong> ${record.kategoriTemuan}</p>
-					<p><strong>Lokasi Temuan:</strong> ${record.lokasiTemuan || "-"}</p>
-					<p><strong>Detail Lokasi Temuan:</strong> ${record.detailLokasiTemuan}</p>
-					<p><strong>Risk Level:</strong> ${record.riskLevel}</p>
-					<p><strong>Nama PIC:</strong> ${record.namaPic}</p>
-					<p><strong>Perbaikan Langsung:</strong> ${record.perbaikanLangsung}</p>
-					<p><strong>Status:</strong> ${record.status || "-"}</p>
-					<p><strong>Tanggal Perbaikan:</strong> ${record.tanggalPerbaikan || "-"}</p>
+					<div class="detail-item"><span class="detail-label">Tanggal Laporan</span><span class="detail-value">${record.tanggalLaporan}</span></div>
+					<div class="detail-item"><span class="detail-label">Nama Pelapor</span><span class="detail-value">${record.namaPelapor}</span></div>
+					<div class="detail-item"><span class="detail-label">Jabatan</span><span class="detail-value">${record.jabatan}</span></div>
+					<div class="detail-item"><span class="detail-label">Departemen</span><span class="detail-value">${record.departemen}</span></div>
+					<div class="detail-item"><span class="detail-label">Perusahaan</span><span class="detail-value">${record.perusahaan || "-"}</span></div>
+					<div class="detail-item"><span class="detail-label">Tanggal Temuan</span><span class="detail-value">${record.tanggalTemuan}</span></div>
+					<div class="detail-item"><span class="detail-label">Kategori Temuan</span><span class="detail-value">${record.kategoriTemuan}</span></div>
+					<div class="detail-item"><span class="detail-label">Lokasi Temuan</span><span class="detail-value">${record.lokasiTemuan || "-"}</span></div>
+					<div class="detail-item"><span class="detail-label">Detail Lokasi Temuan</span><span class="detail-value">${record.detailLokasiTemuan}</span></div>
+					<div class="detail-item"><span class="detail-label">Risk Level</span><span class="detail-value">${record.riskLevel}</span></div>
+					<div class="detail-item"><span class="detail-label">Nama PIC</span><span class="detail-value">${record.namaPic}</span></div>
+					<div class="detail-item"><span class="detail-label">Perbaikan Langsung</span><span class="detail-value">${record.perbaikanLangsung}</span></div>
+					<div class="detail-item"><span class="detail-label">Status</span><span class="detail-value">${statusBadgeMarkup}</span></div>
+					<div class="detail-item"><span class="detail-label">Tanggal Perbaikan</span><span class="detail-value">${record.tanggalPerbaikan || "-"}</span></div>
 				</div>
-				<p><strong>Detail Temuan:</strong> ${record.detailTemuan}</p>
-				<p><strong>Tindakan Perbaikan:</strong> ${record.tindakanPerbaikan || "-"}</p>
-				<h4>Foto Temuan</h4>
+				<div class="detail-copy-block">
+					<h4 class="detail-section-title">Detail Temuan</h4>
+					<p class="detail-copy">${record.detailTemuan}</p>
+				</div>
+				<div class="detail-copy-block">
+					<h4 class="detail-section-title">Tindakan Perbaikan</h4>
+					<p class="detail-copy">${record.tindakanPerbaikan || "-"}</p>
+				</div>
+				<h4 class="detail-section-title">Foto Temuan</h4>
 				${renderPhotos(record.fotoTemuan)}
-				<h4>Foto Perbaikan</h4>
+				<h4 class="detail-section-title">Foto Perbaikan</h4>
 				${renderPhotos(record.fotoPerbaikan)}
 			`;
 
@@ -3320,28 +3365,36 @@ function renderDashboard(session) {
 				return;
 			}
 
+			const getStatusBadgeMarkup = (status) => {
+				const label = String(status || "-").trim() || "-";
+				const modifier = label === "-" ? "status-empty" : `status-${label.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
+				return `<span class="tta-status-badge ${modifier}">${label}</span>`;
+			};
+
 			const rows = records
 				.map((item, index) => ({ item, index }))
 				.reverse()
 				.map(
 					(entry) => `
-						<tr>
-							<td>${entry.item.noId}</td>
-							<td>${entry.item.tanggalLaporan}</td>
-							<td>${entry.item.namaPelapor}</td>
-							<td>${entry.item.departemen}</td>
-							<td>${entry.item.riskLevel}</td>
-							<td>${entry.item.namaPic}</td>
-							<td>${entry.item.perbaikanLangsung}</td>
-							<td>${entry.item.status || "-"}</td>
-							<td>
-								<button type="button" class="btn-small btn-edit kta-detail-btn" data-index="${entry.index}">Detail</button>
+						<tr class="kta-history-row">
+							<td data-label="No ID"><span class="tta-cell-primary">${entry.item.noId}</span></td>
+							<td data-label="Tanggal Laporan">${entry.item.tanggalLaporan}</td>
+							<td data-label="Nama Pelapor">${entry.item.namaPelapor}</td>
+							<td data-label="Departemen">${entry.item.departemen}</td>
+							<td data-label="Risk Level">${entry.item.riskLevel}</td>
+							<td data-label="Nama PIC">${entry.item.namaPic}</td>
+							<td data-label="Perbaikan Langsung">${entry.item.perbaikanLangsung}</td>
+							<td data-label="Status">${getStatusBadgeMarkup(entry.item.status)}</td>
+							<td data-label="Aksi">
+								<div class="table-actions">
+									<button type="button" class="btn-small btn-edit kta-detail-btn" data-index="${entry.index}">Detail</button>
 								${
 									isSuperAdmin
 										? `<button type="button" class="btn-small btn-edit kta-edit-btn" data-index="${entry.index}">Edit</button>
 										   <button type="button" class="btn-small btn-delete kta-delete-btn" data-index="${entry.index}">Hapus</button>`
 										: ""
 								}
+								</div>
 							</td>
 						</tr>
 					`,
@@ -3349,7 +3402,7 @@ function renderDashboard(session) {
 				.join("");
 
 			ktaHistory.innerHTML = `
-				<table class="data-table">
+				<table class="data-table kta-history-table">
 					<thead>
 						<tr>
 							<th>No ID</th>
@@ -3703,6 +3756,7 @@ function renderDashboard(session) {
 	function renderTtaContent() {
 		const reportDate = getTodayDate();
 		const noId = createTtaId();
+		const isSuperAdmin = session.role === "Super Admin";
 		const picOptions = getPics();
 		const userOptions = getManagedUsers();
 		const kategoriTemuanOptions = [
@@ -3722,112 +3776,142 @@ function renderDashboard(session) {
 			<h2>Form TTA</h2>
 			<p class="subtitle">Input data TTA sesuai temuan lapangan.</p>
 			<form id="ttaForm" class="form-grid" novalidate>
-				<div class="field">
-					<label for="ttaNoId">No ID</label>
-					<input id="ttaNoId" name="noId" type="text" value="${noId}" readonly />
-				</div>
-				<div class="field">
-					<label for="ttaTanggalLaporan">Tanggal Laporan</label>
-					<input id="ttaTanggalLaporan" name="tanggalLaporan" type="date" value="${reportDate}" readonly />
-				</div>
-				<div class="field">
-					<label for="ttaNamaPelapor">Nama Pelapor</label>
-					<input id="ttaNamaPelapor" name="namaPelapor" type="text" value="${profile.namaPelapor}" readonly />
-				</div>
-				<div class="field">
-					<label for="ttaJabatan">Jabatan</label>
-					<input id="ttaJabatan" name="jabatan" type="text" value="${profile.jabatan}" readonly />
-				</div>
-				<div class="field">
-					<label for="ttaDepartemen">Departemen</label>
-					<input id="ttaDepartemen" name="departemen" type="text" value="${profile.departemen}" readonly />
-				</div>
-				<div class="field">
-					<label for="ttaPerusahaan">Perusahaan</label>
-					<input id="ttaPerusahaan" name="perusahaan" type="text" value="${profile.perusahaan}" readonly />
-				</div>
-				<div class="field">
-					<label for="ttaTanggalTemuan">Tanggal Temuan</label>
-					<input id="ttaTanggalTemuan" name="tanggalTemuan" type="date" required />
-				</div>
-				<div class="field">
-					<label for="ttaJamTemuan">Jam Temuan</label>
-					<input id="ttaJamTemuan" name="jamTemuan" type="time" required />
-				</div>
-				<div class="field">
-					<label for="ttaKategoriTemuan">Kategori Temuan</label>
-					<select id="ttaKategoriTemuan" name="kategoriTemuan" required>
-						<option value="">Pilih Kategori Temuan</option>
-						${kategoriTemuanOptions.map((item) => `<option value="${item}">${item}</option>`).join("")}
-					</select>
-				</div>
-				<div class="field">
-					<label for="ttaLokasiTemuan">Lokasi Temuan</label>
-					<select id="ttaLokasiTemuan" name="lokasiTemuan" required>
-						<option value="">Pilih Lokasi Temuan</option>
-						${lokasiTemuanOptions.map((item) => `<option value="${item}">${item}</option>`).join("")}
-					</select>
-				</div>
-				<div class="field">
-					<label for="ttaDetailLokasi">Detail Lokasi Temuan</label>
-					<input id="ttaDetailLokasi" name="detailLokasiTemuan" type="text" required />
-				</div>
-				<div class="field">
-					<label for="ttaRiskLevel">Risk Level</label>
-					<select id="ttaRiskLevel" name="riskLevel" required>
-						<option value="">Pilih Risk Level</option>
-						<option value="Critical">Critical</option>
-						<option value="High">High</option>
-						<option value="Medium">Medium</option>
-						<option value="Low">Low</option>
-					</select>
-				</div>
-				<div class="field">
-					<label for="ttaPja">Nama PIC</label>
-					<select id="ttaPja" name="namaPja" required>
-						<option value="">Pilih PIC</option>
-						${picOptions.map((item) => `<option value="${item}">${item}</option>`).join("")}
-					</select>
-				</div>
-				<div class="field">
-					<label for="ttaPelaku">Nama Pelaku TTA</label>
-					<select id="ttaPelaku" name="namaPelakuTta" required>
-						<option value="">Pilih Pelaku TTA</option>
-						<option value="-">-</option>
-						${userOptions.map((item) => `<option value="${item.username}">${item.namaLengkap || item.username}</option>`).join("")}
-					</select>
-				</div>
-				<div class="field">
-					<label for="ttaJabatanPelaku">Jabatan Pelaku TTA</label>
-					<input id="ttaJabatanPelaku" name="jabatanPelakuTta" type="text" readonly />
-				</div>
-				<div class="field">
-					<label for="ttaDepartemenPelaku">Departemen Pelaku TTA</label>
-					<input id="ttaDepartemenPelaku" name="departemenPelakuTta" type="text" readonly />
-				</div>
-				<div class="field">
-					<label for="ttaPerusahaanPelaku">Perusahaan Pelaku TTA</label>
-					<input id="ttaPerusahaanPelaku" name="perusahaanPelakuTta" type="text" readonly />
-				</div>
-				<div class="field field-full">
-					<label for="ttaDetailTemuan">Detail Temuan</label>
-					<textarea id="ttaDetailTemuan" name="detailTemuan" rows="3" required></textarea>
-				</div>
-				<div class="field field-full">
-					<label for="ttaFotoTemuan">Foto Temuan (Opsional)</label>
-					<input id="ttaFotoTemuan" name="fotoTemuan" type="file" accept="image/*" multiple />
-				</div>
-				<div class="field">
-					<label for="ttaPerbaikanLangsung">Perbaikan Langsung</label>
-					<select id="ttaPerbaikanLangsung" name="perbaikanLangsung" required>
-						<option value="">Pilih</option>
-						<option value="Ya">Ya</option>
-						<option value="Tidak">Tidak</option>
-					</select>
-				</div>
+				<section class="form-section field-full">
+					<div class="form-section-header">
+						<h3 class="form-section-title">Informasi Pelapor</h3>
+						<p class="form-section-note">Data pelapor otomatis diambil dari akun aktif.</p>
+					</div>
+					<div class="form-section-grid form-grid">
+						<div class="field">
+							<label for="ttaNoId">No ID</label>
+							<input id="ttaNoId" name="noId" type="text" value="${noId}" readonly />
+						</div>
+						<div class="field">
+							<label for="ttaTanggalLaporan">Tanggal Laporan</label>
+							<input id="ttaTanggalLaporan" name="tanggalLaporan" type="date" value="${reportDate}" readonly />
+						</div>
+						<div class="field">
+							<label for="ttaNamaPelapor">Nama Pelapor</label>
+							<input id="ttaNamaPelapor" name="namaPelapor" type="text" value="${profile.namaPelapor}" readonly />
+						</div>
+						<div class="field">
+							<label for="ttaJabatan">Jabatan</label>
+							<input id="ttaJabatan" name="jabatan" type="text" value="${profile.jabatan}" readonly />
+						</div>
+						<div class="field">
+							<label for="ttaDepartemen">Departemen</label>
+							<input id="ttaDepartemen" name="departemen" type="text" value="${profile.departemen}" readonly />
+						</div>
+						<div class="field">
+							<label for="ttaPerusahaan">Perusahaan</label>
+							<input id="ttaPerusahaan" name="perusahaan" type="text" value="${profile.perusahaan}" readonly />
+						</div>
+					</div>
+				</section>
 
-				<div id="ttaDirectFixSection" class="field-full hidden">
-					<div class="form-grid">
+				<section class="form-section field-full">
+					<div class="form-section-header">
+						<h3 class="form-section-title">Detail Temuan</h3>
+						<p class="form-section-note">Isi waktu, lokasi, kategori, PIC, dan pelaku TTA.</p>
+					</div>
+					<div class="form-section-grid form-grid">
+						<div class="field">
+							<label for="ttaTanggalTemuan">Tanggal Temuan</label>
+							<input id="ttaTanggalTemuan" name="tanggalTemuan" type="date" required />
+						</div>
+						<div class="field">
+							<label for="ttaJamTemuan">Jam Temuan</label>
+							<input id="ttaJamTemuan" name="jamTemuan" type="time" required />
+						</div>
+						<div class="field">
+							<label for="ttaKategoriTemuan">Kategori Temuan</label>
+							<select id="ttaKategoriTemuan" name="kategoriTemuan" required>
+								<option value="">Pilih Kategori Temuan</option>
+								${kategoriTemuanOptions.map((item) => `<option value="${item}">${item}</option>`).join("")}
+							</select>
+						</div>
+						<div class="field">
+							<label for="ttaLokasiTemuan">Lokasi Temuan</label>
+							<select id="ttaLokasiTemuan" name="lokasiTemuan" required>
+								<option value="">Pilih Lokasi Temuan</option>
+								${lokasiTemuanOptions.map((item) => `<option value="${item}">${item}</option>`).join("")}
+							</select>
+						</div>
+						<div class="field">
+							<label for="ttaDetailLokasi">Detail Lokasi Temuan</label>
+							<input id="ttaDetailLokasi" name="detailLokasiTemuan" type="text" required />
+						</div>
+						<div class="field">
+							<label for="ttaRiskLevel">Risk Level</label>
+							<select id="ttaRiskLevel" name="riskLevel" required>
+								<option value="">Pilih Risk Level</option>
+								<option value="Critical">Critical</option>
+								<option value="High">High</option>
+								<option value="Medium">Medium</option>
+								<option value="Low">Low</option>
+							</select>
+						</div>
+						<div class="field">
+							<label for="ttaPja">Nama PIC</label>
+							<select id="ttaPja" name="namaPja" required>
+								<option value="">Pilih PIC</option>
+								${picOptions.map((item) => `<option value="${item}">${item}</option>`).join("")}
+							</select>
+						</div>
+						<div class="field">
+							<label for="ttaPelaku">Nama Pelaku TTA</label>
+							<select id="ttaPelaku" name="namaPelakuTta" required>
+								<option value="">Pilih Pelaku TTA</option>
+								<option value="-">-</option>
+								${userOptions.map((item) => `<option value="${item.username}">${item.namaLengkap || item.username}</option>`).join("")}
+							</select>
+						</div>
+						<div class="field">
+							<label for="ttaJabatanPelaku">Jabatan Pelaku TTA</label>
+							<input id="ttaJabatanPelaku" name="jabatanPelakuTta" type="text" readonly />
+						</div>
+						<div class="field">
+							<label for="ttaDepartemenPelaku">Departemen Pelaku TTA</label>
+							<input id="ttaDepartemenPelaku" name="departemenPelakuTta" type="text" readonly />
+						</div>
+						<div class="field">
+							<label for="ttaPerusahaanPelaku">Perusahaan Pelaku TTA</label>
+							<input id="ttaPerusahaanPelaku" name="perusahaanPelakuTta" type="text" readonly />
+						</div>
+						<div class="field field-full">
+							<label for="ttaDetailTemuan">Detail Temuan</label>
+							<textarea id="ttaDetailTemuan" name="detailTemuan" rows="3" required></textarea>
+						</div>
+						<div class="field field-full">
+							<label for="ttaFotoTemuan">Foto Temuan (Opsional)</label>
+							<input id="ttaFotoTemuan" name="fotoTemuan" type="file" accept="image/*" multiple />
+						</div>
+					</div>
+				</section>
+
+				<section class="form-section field-full">
+					<div class="form-section-header">
+						<h3 class="form-section-title">Tindak Lanjut</h3>
+						<p class="form-section-note">Atur perbaikan langsung dan status penyelesaian temuan.</p>
+					</div>
+					<div class="form-section-grid form-grid">
+						<div class="field">
+							<label for="ttaPerbaikanLangsung">Perbaikan Langsung</label>
+							<select id="ttaPerbaikanLangsung" name="perbaikanLangsung" required>
+								<option value="">Pilih</option>
+								<option value="Ya">Ya</option>
+								<option value="Tidak">Tidak</option>
+							</select>
+						</div>
+					</div>
+				</section>
+
+				<div id="ttaDirectFixSection" class="form-section field-full hidden">
+					<div class="form-section-header">
+						<h3 class="form-section-title">Detail Perbaikan</h3>
+						<p class="form-section-note">Bagian ini aktif saat perbaikan langsung dilakukan.</p>
+					</div>
+					<div class="form-section-grid form-grid">
 						<div class="field field-full">
 							<label for="ttaTindakanPerbaikan">Tindakan Perbaikan</label>
 							<textarea id="ttaTindakanPerbaikan" name="tindakanPerbaikan" rows="3"></textarea>
@@ -3925,38 +4009,53 @@ function renderDashboard(session) {
 		}
 
 		function showTtaDetail(record) {
+			const statusBadgeMarkup = (() => {
+				const label = String(record.status || "-").trim() || "-";
+				const modifier = label === "-" ? "status-empty" : `status-${label.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
+				return `<span class="tta-status-badge ${modifier}">${label}</span>`;
+			})();
+
 			ttaDetailPanel.classList.remove("hidden");
 			ttaDetailPanel.innerHTML = `
 				<div class="detail-header">
-					<h3>Detail TTA - ${record.noId}</h3>
+					<div>
+						<h3>Detail TTA</h3>
+						<p class="detail-meta">${record.noId}</p>
+					</div>
 					<button type="button" id="closeTtaDetail" class="btn-small">Tutup</button>
 				</div>
 				<div class="detail-grid">
-					<p><strong>Tanggal Laporan:</strong> ${record.tanggalLaporan}</p>
-					<p><strong>Nama Pelapor:</strong> ${record.namaPelapor}</p>
-					<p><strong>Jabatan:</strong> ${record.jabatan}</p>
-					<p><strong>Departemen:</strong> ${record.departemen}</p>
-					<p><strong>Perusahaan:</strong> ${record.perusahaan || "-"}</p>
-					<p><strong>Tanggal Temuan:</strong> ${record.tanggalTemuan}</p>
-					<p><strong>Jam Temuan:</strong> ${record.jamTemuan}</p>
-					<p><strong>Kategori Temuan:</strong> ${record.kategoriTemuan}</p>
-					<p><strong>Lokasi Temuan:</strong> ${record.lokasiTemuan || "-"}</p>
-					<p><strong>Detail Lokasi Temuan:</strong> ${record.detailLokasiTemuan}</p>
-					<p><strong>Risk Level:</strong> ${record.riskLevel}</p>
-					<p><strong>Nama PIC:</strong> ${record.namaPja || record.namaPic || "-"}</p>
-					<p><strong>Nama Pelaku TTA:</strong> ${getUserFullNameFromIdentifier(record.namaPelakuTta)}</p>
-					<p><strong>Jabatan Pelaku TTA:</strong> ${record.jabatanPelakuTta}</p>
-					<p><strong>Departemen Pelaku TTA:</strong> ${record.departemenPelakuTta}</p>
-					<p><strong>Perusahaan Pelaku TTA:</strong> ${record.perusahaanPelakuTta || "-"}</p>
-					<p><strong>Perbaikan Langsung:</strong> ${record.perbaikanLangsung}</p>
-					<p><strong>Status:</strong> ${record.status || "-"}</p>
-					<p><strong>Tanggal Perbaikan:</strong> ${record.tanggalPerbaikan || "-"}</p>
+					<div class="detail-item"><span class="detail-label">Tanggal Laporan</span><span class="detail-value">${record.tanggalLaporan}</span></div>
+					<div class="detail-item"><span class="detail-label">Nama Pelapor</span><span class="detail-value">${record.namaPelapor}</span></div>
+					<div class="detail-item"><span class="detail-label">Jabatan</span><span class="detail-value">${record.jabatan}</span></div>
+					<div class="detail-item"><span class="detail-label">Departemen</span><span class="detail-value">${record.departemen}</span></div>
+					<div class="detail-item"><span class="detail-label">Perusahaan</span><span class="detail-value">${record.perusahaan || "-"}</span></div>
+					<div class="detail-item"><span class="detail-label">Tanggal Temuan</span><span class="detail-value">${record.tanggalTemuan}</span></div>
+					<div class="detail-item"><span class="detail-label">Jam Temuan</span><span class="detail-value">${record.jamTemuan}</span></div>
+					<div class="detail-item"><span class="detail-label">Kategori Temuan</span><span class="detail-value">${record.kategoriTemuan}</span></div>
+					<div class="detail-item"><span class="detail-label">Lokasi Temuan</span><span class="detail-value">${record.lokasiTemuan || "-"}</span></div>
+					<div class="detail-item"><span class="detail-label">Detail Lokasi Temuan</span><span class="detail-value">${record.detailLokasiTemuan}</span></div>
+					<div class="detail-item"><span class="detail-label">Risk Level</span><span class="detail-value">${record.riskLevel}</span></div>
+					<div class="detail-item"><span class="detail-label">Nama PIC</span><span class="detail-value">${record.namaPja || record.namaPic || "-"}</span></div>
+					<div class="detail-item"><span class="detail-label">Nama Pelaku TTA</span><span class="detail-value">${getUserFullNameFromIdentifier(record.namaPelakuTta)}</span></div>
+					<div class="detail-item"><span class="detail-label">Jabatan Pelaku TTA</span><span class="detail-value">${record.jabatanPelakuTta}</span></div>
+					<div class="detail-item"><span class="detail-label">Departemen Pelaku TTA</span><span class="detail-value">${record.departemenPelakuTta}</span></div>
+					<div class="detail-item"><span class="detail-label">Perusahaan Pelaku TTA</span><span class="detail-value">${record.perusahaanPelakuTta || "-"}</span></div>
+					<div class="detail-item"><span class="detail-label">Perbaikan Langsung</span><span class="detail-value">${record.perbaikanLangsung}</span></div>
+					<div class="detail-item"><span class="detail-label">Status</span><span class="detail-value">${statusBadgeMarkup}</span></div>
+					<div class="detail-item"><span class="detail-label">Tanggal Perbaikan</span><span class="detail-value">${record.tanggalPerbaikan || "-"}</span></div>
 				</div>
-				<p><strong>Detail Temuan:</strong> ${record.detailTemuan}</p>
-				<p><strong>Tindakan Perbaikan:</strong> ${record.tindakanPerbaikan || "-"}</p>
-				<h4>Foto Temuan</h4>
+				<div class="detail-copy-block">
+					<h4 class="detail-section-title">Detail Temuan</h4>
+					<p class="detail-copy">${record.detailTemuan}</p>
+				</div>
+				<div class="detail-copy-block">
+					<h4 class="detail-section-title">Tindakan Perbaikan</h4>
+					<p class="detail-copy">${record.tindakanPerbaikan || "-"}</p>
+				</div>
+				<h4 class="detail-section-title">Foto Temuan</h4>
 				${renderPhotos(record.fotoTemuan)}
-				<h4>Foto Perbaikan</h4>
+				<h4 class="detail-section-title">Foto Perbaikan</h4>
 				${renderPhotos(record.fotoPerbaikan)}
 			`;
 
@@ -3975,23 +4074,31 @@ function renderDashboard(session) {
 				return;
 			}
 
+			const getStatusBadgeMarkup = (status) => {
+				const label = String(status || "-").trim() || "-";
+				const modifier = label === "-" ? "status-empty" : `status-${label.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
+				return `<span class="tta-status-badge ${modifier}">${label}</span>`;
+			};
+
 			const rows = records
 				.map((item, index) => ({ item, index }))
 				.reverse()
 				.map(
 					(entry) => `
-						<tr>
-							<td>${entry.item.noId}</td>
-							<td>${entry.item.tanggalLaporan}</td>
-							<td>${entry.item.namaPelapor}</td>
-							<td>${entry.item.namaPja || entry.item.namaPic || "-"}</td>
-							<td>${getUserFullNameFromIdentifier(entry.item.namaPelakuTta)}</td>
-							<td>${entry.item.riskLevel}</td>
-							<td>${entry.item.status || "-"}</td>
-							<td>
-								<button type="button" class="btn-small btn-edit tta-detail-btn" data-index="${entry.index}">Detail</button>
-								<button type="button" class="btn-small btn-edit tta-edit-btn" data-index="${entry.index}">Edit</button>
-								<button type="button" class="btn-small btn-delete tta-delete-btn" data-index="${entry.index}">Hapus</button>
+						<tr class="tta-history-row">
+							<td data-label="No ID"><span class="tta-cell-primary">${entry.item.noId}</span></td>
+							<td data-label="Tanggal Laporan">${entry.item.tanggalLaporan}</td>
+							<td data-label="Nama Pelapor">${entry.item.namaPelapor}</td>
+							<td data-label="Nama PIC">${entry.item.namaPja || entry.item.namaPic || "-"}</td>
+							<td data-label="Pelaku TTA">${getUserFullNameFromIdentifier(entry.item.namaPelakuTta)}</td>
+							<td data-label="Risk Level">${entry.item.riskLevel}</td>
+							<td data-label="Status">${getStatusBadgeMarkup(entry.item.status)}</td>
+							<td data-label="Aksi">
+								<div class="table-actions">
+									<button type="button" class="btn-small btn-edit tta-detail-btn" data-index="${entry.index}">Detail</button>
+									<button type="button" class="btn-small btn-edit tta-edit-btn" data-index="${entry.index}">Edit</button>
+									${isSuperAdmin ? `<button type="button" class="btn-small btn-delete tta-delete-btn" data-index="${entry.index}">Hapus</button>` : ""}
+								</div>
 							</td>
 						</tr>
 					`,
@@ -3999,7 +4106,7 @@ function renderDashboard(session) {
 				.join("");
 
 			ttaHistory.innerHTML = `
-				<table class="data-table">
+				<table class="data-table tta-history-table">
 					<thead>
 						<tr>
 							<th>No ID</th>
@@ -4078,6 +4185,11 @@ function renderDashboard(session) {
 				button.addEventListener("click", async () => {
 					ttaError.textContent = "";
 					ttaSuccess.textContent = "";
+					if (!isSuperAdmin) {
+						ttaError.textContent = "Hanya Super Admin yang dapat menghapus tiket TTA.";
+						return;
+					}
+
 					const index = Number(button.dataset.index);
 					const recordsNow = getTtaRecords();
 					const selectedRecord = recordsNow[index];

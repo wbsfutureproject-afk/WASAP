@@ -51,12 +51,66 @@ It also updates the daily target composition for job groups `PENGAWAS` and `LEVE
 - Added release checklist for deploy and handover.
 - Added PR template file for future review consistency.
 
+## Recent Updates (Mobile UI & Access Control)
+
+### Frontend - Mobile UX Improvements
+
+- Improved KTA/TTA history layout for mobile with responsive card-style table rendering:
+  - Header row hidden on mobile (≤768px)
+  - Each record displays as a card with label-value pairs
+  - Status field now uses visual badge indicator
+  - Action buttons (Detail, Edit, Delete) wrap responsively in container
+  
+- Enhanced KTA/TTA detail panel structure:
+  - Separated title and record ID for clearer visual hierarchy
+  - Grouped information into visual cards per field
+  - Added section titles for Detail Temuan, Tindakan Perbaikan, and photo galleries
+  - Photo grid adapted for mobile (2-column on small screens)
+  - Applied consistent status badge styling
+
+- Reorganized KTA/TTA form inputs into clear sections:
+  - **Informasi Pelapor**: Auto-filled readonly fields (No ID, Date, Name, Jabatan, Dept, Perusahaan)
+  - **Detail Temuan**: Investigative data (Tanggal, Jam, Kategori, Lokasi, Risk Level, PIC, Pelaku TTA, Detail Temuan, Foto Temuan)
+  - **Tindak Lanjut**: Action selection (Perbaikan Langsung)
+  - **Detail Perbaikan**: Conditional section (Tindakan Perbaikan, Foto Perbaikan, Tanggal Perbaikan, Status) - appears only if Perbaikan Langsung = Ya
+  - Each section has explanatory subtitle for context
+  - Fields on mobile collapse to single column
+
+### Backend - Access Control Enforcement
+
+- Added role-based access control for TTA deletion:
+  - New helper function `isSuperAdminAccount()` validates Super Admin status from token
+  - `DELETE /api/tta/:noId` endpoint now requires Super Admin, returns `403 Forbidden` for non-superadmins
+  - Auth middleware attaches user account info to `req.auth` for downstream checks
+  
+### Frontend - Permission Guard
+
+- TTA history history rendering now conditionally shows Delete button only for Super Admin users
+- Client-side validation prevents delete click handler from executing for non-superadmins
+- Error message clearly indicates "Hanya Super Admin yang dapat menghapus tiket TTA."
+
+### Styling Enhancements
+
+- New `.form-section` class for mobile-friendly form grouping (card layout, gradient background, shadow)
+- Updated `.btn-small` to use flexbox centering for better alignment
+- Added `.table-actions` wrapper for responsive button grouping in table cells
+- Status badge colors:
+  - `status-open`: Blue (#eff6ff background)
+  - `status-progress`: Orange (#fff7ed background)
+  - `status-close`: Green (#ecfdf5 background)
+  - `status-empty`: Gray (#f8fafc background)
+- Readonly inputs styled with dashed borders and light background for visual distinction
+- File inputs styled with consistent background and padding
+
 ## Validation
 
 - ✅ `npm run check`
 - ✅ `npm run smoke`
 - ✅ Auth guard verified (`401` on protected endpoint without token)
-- ✅ Frontend served script reflects new target rule (`KTA 1 + TTA 2 / hari`)
+- ✅ TTA endpoint delete access verified (403 for non-superadmin)
+- ✅ Frontend TTA history renders delete button only for Super Admin
+- ✅ Mobile card layout renders correctly (verified via CSS media queries)
+- ✅ Form sections group logically (verified via semantic structure)
 
 ## Deployment Notes
 
