@@ -5769,7 +5769,11 @@ function renderApp() {
 async function startApp() {
 	const session = getSession();
 	if (session) {
-		await hydrateRecordsFromBackend();
+		try {
+			await hydrateRecordsFromBackend();
+		} catch (error) {
+			console.error("Hydration gagal saat startup, lanjutkan render lokal:", error);
+		}
 	}
 	renderApp();
 	updateBackendStatus();
