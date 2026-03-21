@@ -52,8 +52,9 @@ body {
 
 .app {
 	width: 100%;
-	max-width: 980px;
-	padding: 20px;
+	max-width: 1200px;
+	padding: 24px;
+	margin: 0 auto;
 }
 
 .card {
@@ -61,6 +62,7 @@ body {
 	border: 1px solid var(--border);
 	border-radius: 12px;
 	padding: 24px;
+	margin-bottom: 24px;
 }
 
 h1,
@@ -139,7 +141,7 @@ button {
 .dashboard-layout {
 	display: grid;
 	grid-template-columns: 260px 1fr;
-	gap: 16px;
+	gap: 24px;
 }
 
 .sidebar {
@@ -209,6 +211,8 @@ button {
 
 .content {
 	min-height: 360px;
+	display: grid;
+	gap: 24px;
 }
 
 .error {
@@ -220,8 +224,9 @@ button {
 
 .menu {
 	display: grid;
-	gap: 10px;
-	margin-top: 14px;
+	gap: 12px;
+	margin-top: 16px;
+	margin-bottom: 16px;
 }
 
 .menu-item {
@@ -242,16 +247,18 @@ button {
 .form-grid {
 	display: grid;
 	grid-template-columns: repeat(2, minmax(0, 1fr));
-	gap: 10px;
-	margin-top: 8px;
+	gap: 12px;
+	margin-top: 12px;
+	margin-bottom: 12px;
 }
 
 .form-section {
 	border: 1px solid #dbe5f1;
 	border-radius: 16px;
-	padding: 14px;
+	padding: 16px;
 	background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
 	box-shadow: 0 10px 24px rgba(15, 23, 42, 0.04);
+	margin-bottom: 12px;
 }
 
 .form-section-header {
@@ -272,6 +279,9 @@ button {
 
 .form-section-grid {
 	margin-top: 0;
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 12px;
 }
 
 #ktaForm,
@@ -318,15 +328,17 @@ input[type="file"] {
 
 	.app {
 		max-width: 100%;
-		padding: 10px;
+		padding: 16px;
 	}
 
 	.card {
-		padding: 14px;
+		padding: 16px;
+		margin-bottom: 16px;
 	}
 
 	.content {
 		min-height: auto;
+		gap: 16px;
 	}
 
 	#ktaForm.form-grid,
@@ -335,12 +347,13 @@ input[type="file"] {
 	#directFixSection .form-grid,
 	#ttaDirectFixSection .form-grid {
 		grid-template-columns: 1fr;
-		gap: 8px;
+		gap: 12px;
 	}
 
 	.form-section {
-		padding: 12px;
+		padding: 14px;
 		border-radius: 14px;
+		margin-bottom: 12px;
 	}
 
 	.form-section-title {
@@ -521,6 +534,7 @@ input[type="file"] {
 	border: 1px solid var(--border);
 	border-radius: 8px;
 	background: #fff;
+	margin-bottom: 16px;
 }
 
 .kta-performance-table-wrap {
@@ -627,10 +641,11 @@ input[type="file"] {
 }
 
 .detail-panel {
-	margin-top: 14px;
+	margin-top: 24px;
+	margin-bottom: 24px;
 	border: 1px solid var(--border);
 	border-radius: 16px;
-	padding: 16px;
+	padding: 20px;
 	background: #fff;
 	box-shadow: 0 16px 36px rgba(15, 23, 42, 0.08);
 }
@@ -657,7 +672,7 @@ input[type="file"] {
 .detail-grid {
 	display: grid;
 	grid-template-columns: repeat(2, minmax(0, 1fr));
-	gap: 10px 12px;
+	gap: 12px;
 }
 
 .detail-item {
@@ -775,13 +790,13 @@ input[type="file"] {
 }
 
 .achievement-section + .achievement-section {
-	margin-top: 16px;
+	margin-top: 24px;
 }
 
 .achievement-chart-grid {
 	display: grid;
 	grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
-	gap: 10px;
+	gap: 12px;
 }
 
 .achievement-month-card {
@@ -878,8 +893,8 @@ input[type="file"] {
 .achievement-stat-grid {
 	display: grid;
 	grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-	gap: 10px;
-	margin-bottom: 12px;
+	gap: 12px;
+	margin-bottom: 16px;
 }
 
 .achievement-section .data-table {
@@ -935,7 +950,8 @@ input[type="file"] {
 
 .achievement-dist-list {
 	display: grid;
-	gap: 8px;
+	gap: 10px;
+	margin-bottom: 16px;
 }
 
 .achievement-dist-row {
@@ -996,8 +1012,8 @@ input[type="file"] {
 .achievement-row-pair {
 	display: grid;
 	grid-template-columns: repeat(2, minmax(0, 1fr));
-	gap: 12px;
-	margin-bottom: 12px;
+	gap: 16px;
+	margin-bottom: 16px;
 }
 
 .achievement-section-half {
@@ -1026,8 +1042,9 @@ input[type="file"] {
 .achievement-donut-wrap {
 	display: grid;
 	grid-template-columns: 170px 1fr;
-	gap: 10px;
+	gap: 16px;
 	align-items: start;
+	margin-bottom: 16px;
 }
 
 .achievement-donut-chart {
@@ -1080,8 +1097,9 @@ input[type="file"] {
 .achievement-rose-wrap {
 	display: grid;
 	grid-template-columns: minmax(220px, 280px) 1fr;
-	gap: 12px;
+	gap: 16px;
 	align-items: start;
+	margin-bottom: 16px;
 }
 
 .achievement-rose-chart {
@@ -1154,21 +1172,26 @@ input[type="file"] {
 @media (max-width: 900px) {
 	.achievement-row-pair {
 		grid-template-columns: 1fr;
+		gap: 16px;
 	}
 
 	.achievement-donut-wrap {
 		grid-template-columns: 1fr;
+		gap: 12px;
 	}
 
 	.achievement-rose-wrap {
 		grid-template-columns: 1fr;
+		gap: 12px;
 	}
+}
 }
 
 .tasklist-grid {
 	display: grid;
 	grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-	gap: 12px;
+	gap: 16px;
+	margin-bottom: 24px;
 }
 
 .task-card {
@@ -1287,14 +1310,16 @@ input[type="file"] {
 @media (max-width: 840px) {
 	.dashboard-layout {
 		grid-template-columns: 1fr;
+		gap: 20px;
 	}
 
 	.form-grid {
 		grid-template-columns: 1fr;
+		gap: 12px;
 	}
 
 	#userForm.form-grid {
-		gap: 8px;
+		gap: 12px;
 	}
 
 	.detail-grid {
@@ -1302,8 +1327,10 @@ input[type="file"] {
 	}
 
 	.detail-panel {
-		padding: 14px;
+		padding: 16px;
 		border-radius: 14px;
+		margin-top: 20px;
+		margin-bottom: 20px;
 	}
 
 	.detail-header {
