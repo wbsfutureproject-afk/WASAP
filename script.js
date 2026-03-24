@@ -6,6 +6,7 @@ const USER_MASTER_KEY = "she_wbs_user_master";
 const LEAVE_SETTINGS_KEY = "she_wbs_leave_settings";
 const KTA_KEY = "she_wbs_kta";
 const TTA_KEY = "she_wbs_tta";
+const FATIGUE_HISTORY_KEY = "she_wbs_fatigue_history";
 const BACKEND_HEALTH_ENDPOINT = "/api/health";
 const KTA_SYNC_ENDPOINT = "/api/kta";
 const TTA_SYNC_ENDPOINT = "/api/tta";
@@ -69,6 +70,7 @@ const ROLE_MENUS = {
 		"Daftar User",
 		"Daftar Departemen",
 		"Daftar PIC",
+		"History Fatigue",
 		"Logout",
 	],
 	Admin: ["My Profile", "Achievement", "Tasklist", "Pengaturan Cuti", "Daftar User", "Logout"],
@@ -942,6 +944,25 @@ function setTtaRecords(records) {
 	pushRecordsToBackend(TTA_SYNC_ENDPOINT, records);
 }
 
+function getFatigueHistoryRecords() {
+	const raw = localStorage.getItem(FATIGUE_HISTORY_KEY);
+	if (!raw) {
+		return [];
+	}
+
+	try {
+		const data = JSON.parse(raw);
+		return Array.isArray(data) ? data : [];
+	} catch (error) {
+		localStorage.removeItem(FATIGUE_HISTORY_KEY);
+		return [];
+	}
+}
+
+function setFatigueHistoryRecords(records) {
+	localStorage.setItem(FATIGUE_HISTORY_KEY, JSON.stringify(Array.isArray(records) ? records : []));
+}
+
 function getTodayDate() {
 	return new Date().toISOString().slice(0, 10);
 }
@@ -1112,6 +1133,20 @@ function getManagedUserByUsername(username) {
 	}
 
 	return getManagedUsers().find((item) => String(item.username || "").trim().toLowerCase() === normalizedUsername) || null;
+}
+
+function getManagedUserByNik(nik) {
+	const normalizedNik = String(nik || "").trim();
+	if (!normalizedNik) {
+		return null;
+	}
+
+	return (
+		getManagedUsers().find((item) => {
+			const userNik = String(item.noKaryawan || item.nik || "").trim();
+			return userNik === normalizedNik;
+		}) || null
+	);
 }
 
 function getUserFullNameFromIdentifier(identifier) {
@@ -5356,6 +5391,679 @@ function renderDashboard(session) {
 		renderPicList();
 	}
 
+	function renderHistoryFatigueContent() {
+		if (session.role !== "Super Admin") {
+			renderDefaultContent("History Fatigue");
+			return;
+		}
+
+		const users = getManagedUsers();
+		const nikOptions = users
+			.map((item) => String(item.noKaryawan || item.nik || "").trim())
+			.filter((item, index, array) => item && array.indexOf(item) === index);
+		let fatigueRecords = getFatigueHistoryRecords();
+
+		contentArea.innerHTML = `
+			<h2>History Fatigue</h2>
+			<p class="subtitle">Isi NIK untuk sinkron otomatis Nama, Jabatan, dan Departemen dari Daftar User.</p>
+			${users.length === 0 ? '<p class="error">Daftar User belum tersedia. Tambahkan user pada menu Daftar User terlebih dahulu.</p>' : ""}
+			<form id="fatigueForm" class="form-grid" novalidate>
+				<div class="field">
+					<label for="fatigueNama">Nama</label>
+					<input id="fatigueNama" name="nama" type="text" readonly />
+				</div>
+				<div class="field">
+					<label for="fatigueNik">NIK</label>
+					<input id="fatigueNik" name="nik" type="text" list="fatigueNikOptions" placeholder="Masukkan NIK" autocomplete="off" />
+					<datalist id="fatigueNikOptions">
+						${nikOptions.map((nik) => `<option value="${nik}"></option>`).join("")}
+					</datalist>
+				</div>
+				<div class="field">
+					<label for="fatigueJabatan">Jabatan</label>
+					<input id="fatigueJabatan" name="jabatan" type="text" readonly />
+				</div>
+				<div class="field">
+					<label for="fatigueDepartemen">Departemen</label>
+					<input id="fatigueDepartemen" name="departemen" type="text" readonly />
+				</div>
+				<div class="field">
+					<label for="fatigueShift">Shift</label>
+					<select id="fatigueShift" name="shift" required>
+						<option value="">Pilih Shift</option>
+						<option value="Shift 1">Shift 1</option>
+						<option value="Shift 2">Shift 2</option>
+					</select>
+				</div>
+				<div class="field">
+					<label for="fatigueTanggalInput">Tanggal</label>
+					<input id="fatigueTanggalInput" name="tanggal" type="date" required />
+				</div>
+
+				<div class="field">
+					<label for="fatigueJamTidur1">Jam Tidur 1</label>
+					<input id="fatigueJamTidur1" name="jamTidur1" type="time" />
+				</div>
+				<div class="field">
+					<label for="fatigueJamBangun1">Jam Bangun 1</label>
+					<input id="fatigueJamBangun1" name="jamBangun1" type="time" />
+				</div>
+
+				<div class="field">
+					<label for="fatigueJamTidur2">Jam Tidur 2</label>
+					<input id="fatigueJamTidur2" name="jamTidur2" type="time" />
+				</div>
+				<div class="field">
+					<label for="fatigueJamBangun2">Jam Bangun 2</label>
+					<input id="fatigueJamBangun2" name="jamBangun2" type="time" />
+				</div>
+
+				<div class="field">
+					<label for="fatigueJamTidur3">Jam Tidur 3</label>
+					<input id="fatigueJamTidur3" name="jamTidur3" type="time" />
+				</div>
+				<div class="field">
+					<label for="fatigueJamBangun3">Jam Bangun 3</label>
+					<input id="fatigueJamBangun3" name="jamBangun3" type="time" />
+				</div>
+
+				<div class="field">
+					<label for="fatigueMinumObat">Apakah Ada Minum Obat</label>
+					<select id="fatigueMinumObat" name="minumObat">
+						<option value="">Pilih Opsi</option>
+						<option value="YA">YA</option>
+						<option value="TIDAK">TIDAK</option>
+					</select>
+				</div>
+				<div class="field">
+					<label for="fatigueMasalah">Apakah Ada Masalah</label>
+					<select id="fatigueMasalah" name="adaMasalah">
+						<option value="">Pilih Opsi</option>
+						<option value="YA">YA</option>
+						<option value="TIDAK">TIDAK</option>
+					</select>
+				</div>
+				<div class="field field-full hidden" id="fatigueMinumObatKeteranganField">
+					<label for="fatigueMinumObatKeterangan">Keterangan Minum Obat</label>
+					<textarea id="fatigueMinumObatKeterangan" name="keteranganMinumObat" rows="3" placeholder="Tulis keterangan minum obat..."></textarea>
+				</div>
+				<div class="field field-full hidden" id="fatigueMasalahKeteranganField">
+					<label for="fatigueMasalahKeterangan">Keterangan Masalah</label>
+					<textarea id="fatigueMasalahKeterangan" name="keteranganMasalah" rows="3" placeholder="Tulis keterangan masalah..."></textarea>
+				</div>
+				<div class="field">
+					<label for="fatigueNikPengawas">NIK Pengawas Validasi</label>
+					<input id="fatigueNikPengawas" name="nikPengawasValidasi" type="text" list="fatigueNikOptions" placeholder="Masukkan NIK Pengawas" autocomplete="off" />
+				</div>
+				<div class="field">
+					<label for="fatigueNamaPengawas">Nama Pengawas Validasi</label>
+					<input id="fatigueNamaPengawas" name="namaPengawasValidasi" type="text" readonly />
+				</div>
+
+				<div class="field field-full">
+					<label for="fatigueTotalJam">Total Jam Tidur 12 Jam Terakhir</label>
+					<input id="fatigueTotalJam" name="totalJamTidur12JamTerakhir" type="text" readonly value="0 Jam 0 Menit" />
+				</div>
+				<div class="field field-full">
+					<label for="fatigueKekuranganJam">Hasil Kekurangan Jam Tidur (Minimum 6 Jam)</label>
+					<input id="fatigueKekuranganJam" name="hasilKekuranganJamTidur" type="text" readonly value="6 Jam 0 Menit" />
+				</div>
+				<div class="field field-full">
+					<label for="fatigueFollowUp">Follow Up</label>
+					<textarea id="fatigueFollowUp" name="followUp" rows="3" placeholder="Tulis follow up..."></textarea>
+				</div>
+				<div class="inline-actions field-full">
+					<button type="submit" id="submitFatigueBtn" class="btn-primary">Submit</button>
+				</div>
+			</form>
+			<p id="fatigueError" class="error"></p>
+			<p id="fatigueSuccess" class="subtitle"></p>
+			<div id="fatigueHistory"></div>
+		`;
+
+		const fatigueForm = document.getElementById("fatigueForm");
+		const fatigueNik = document.getElementById("fatigueNik");
+		const fatigueNama = document.getElementById("fatigueNama");
+		const fatigueJabatan = document.getElementById("fatigueJabatan");
+		const fatigueDepartemen = document.getElementById("fatigueDepartemen");
+		const fatigueShift = document.getElementById("fatigueShift");
+		const fatigueTanggalInput = document.getElementById("fatigueTanggalInput");
+		const fatigueMinumObat = document.getElementById("fatigueMinumObat");
+		const fatigueMasalah = document.getElementById("fatigueMasalah");
+		const fatigueMinumObatKeteranganField = document.getElementById("fatigueMinumObatKeteranganField");
+		const fatigueMasalahKeteranganField = document.getElementById("fatigueMasalahKeteranganField");
+		const fatigueMinumObatKeterangan = document.getElementById("fatigueMinumObatKeterangan");
+		const fatigueMasalahKeterangan = document.getElementById("fatigueMasalahKeterangan");
+		const fatigueNikPengawas = document.getElementById("fatigueNikPengawas");
+		const fatigueNamaPengawas = document.getElementById("fatigueNamaPengawas");
+		const fatigueTotalJam = document.getElementById("fatigueTotalJam");
+		const fatigueKekuranganJam = document.getElementById("fatigueKekuranganJam");
+		const fatigueFollowUp = document.getElementById("fatigueFollowUp");
+		const submitFatigueBtn = document.getElementById("submitFatigueBtn");
+		const fatigueError = document.getElementById("fatigueError");
+		const fatigueSuccess = document.getElementById("fatigueSuccess");
+		const fatigueHistory = document.getElementById("fatigueHistory");
+
+		const fatigueJamTidur1 = document.getElementById("fatigueJamTidur1");
+		const fatigueJamBangun1 = document.getElementById("fatigueJamBangun1");
+		const fatigueJamTidur2 = document.getElementById("fatigueJamTidur2");
+		const fatigueJamBangun2 = document.getElementById("fatigueJamBangun2");
+		const fatigueJamTidur3 = document.getElementById("fatigueJamTidur3");
+		const fatigueJamBangun3 = document.getElementById("fatigueJamBangun3");
+
+		const sleepPairs = [
+			{
+				sleep: fatigueJamTidur1,
+				wake: fatigueJamBangun1,
+			},
+			{
+				sleep: fatigueJamTidur2,
+				wake: fatigueJamBangun2,
+			},
+			{
+				sleep: fatigueJamTidur3,
+				wake: fatigueJamBangun3,
+			},
+		];
+
+		function clearProfileFields() {
+			fatigueNama.value = "";
+			fatigueJabatan.value = "";
+			fatigueDepartemen.value = "";
+		}
+
+		function clearSupervisorFields() {
+			fatigueNamaPengawas.value = "";
+		}
+
+		function escapeHtml(value) {
+			return String(value || "")
+				.replaceAll("&", "&amp;")
+				.replaceAll("<", "&lt;")
+				.replaceAll(">", "&gt;")
+				.replaceAll('"', "&quot;")
+				.replaceAll("'", "&#39;");
+		}
+
+		function initFatigueDateSelectors() {
+			const now = new Date();
+			const yyyy = now.getFullYear();
+			const mm = String(now.getMonth() + 1).padStart(2, "0");
+			const dd = String(now.getDate()).padStart(2, "0");
+			fatigueTanggalInput.value = `${yyyy}-${mm}-${dd}`;
+		}
+
+		function getFatigueSelectedDate() {
+			return String(fatigueTanggalInput.value || "").trim();
+		}
+
+		function formatFatigueDateDisplay(dateValue) {
+			const rawDate = String(dateValue || "").trim();
+			if (!/^\d{4}-\d{2}-\d{2}$/.test(rawDate)) {
+				return rawDate;
+			}
+
+			const [year, month, day] = rawDate.split("-");
+			return `${day}-${month}-${year}`;
+		}
+
+		function toggleKeteranganField(selectElement, fieldElement, textareaElement) {
+			const selectedValue = String(selectElement?.value || "").trim().toUpperCase();
+			const showField = selectedValue === "YA";
+
+			fieldElement.classList.toggle("hidden", !showField);
+			textareaElement.required = showField;
+			if (!showField) {
+				textareaElement.value = "";
+			}
+		}
+
+		function validateConditionalKeterangan() {
+			const minumObatYa = String(fatigueMinumObat.value || "").trim().toUpperCase() === "YA";
+			const masalahYa = String(fatigueMasalah.value || "").trim().toUpperCase() === "YA";
+
+			if (minumObatYa && !String(fatigueMinumObatKeterangan.value || "").trim()) {
+				fatigueError.textContent = "Keterangan Minum Obat wajib diisi jika memilih YA.";
+				return false;
+			}
+
+			if (masalahYa && !String(fatigueMasalahKeterangan.value || "").trim()) {
+				fatigueError.textContent = "Keterangan Masalah wajib diisi jika memilih YA.";
+				return false;
+			}
+
+			fatigueError.textContent = "";
+			return true;
+		}
+
+		function syncUserByNik() {
+			const nik = String(fatigueNik.value || "").trim();
+
+			if (!nik) {
+				clearProfileFields();
+				return null;
+			}
+
+			const selected = getManagedUserByNik(nik);
+			if (!selected) {
+				clearProfileFields();
+				return null;
+			}
+
+			fatigueNama.value = String(selected.namaLengkap || selected.username || "").trim();
+			fatigueJabatan.value = String(selected.jabatan || "").trim();
+			fatigueDepartemen.value = String(selected.departemen || "").trim();
+			return selected;
+		}
+
+		function syncSupervisorByNik() {
+			const nikPengawas = String(fatigueNikPengawas.value || "").trim();
+
+			if (!nikPengawas) {
+				clearSupervisorFields();
+				return null;
+			}
+
+			const selected = getManagedUserByNik(nikPengawas);
+			if (!selected) {
+				clearSupervisorFields();
+				return null;
+			}
+
+			fatigueNamaPengawas.value = String(selected.namaLengkap || selected.username || "").trim();
+			return selected;
+		}
+
+		function renderFatigueHistoryTable() {
+			if (fatigueRecords.length === 0) {
+				fatigueHistory.innerHTML = `<p class="subtitle">Belum ada data history fatigue yang tersubmit.</p>`;
+				return;
+			}
+
+			const rows = fatigueRecords
+				.map((record, index) => {
+					return `
+						<tr>
+							<td>${index + 1}</td>
+							<td>${escapeHtml(record.tanggalSubmit)}</td>
+							<td>${escapeHtml(record.nama)}</td>
+							<td>${escapeHtml(record.nik)}</td>
+							<td>${escapeHtml(record.jabatan)}</td>
+							<td>${escapeHtml(record.departemen)}</td>
+							<td>${escapeHtml(record.shift)}</td>
+							<td>${escapeHtml(formatFatigueDateDisplay(record.tanggal))}</td>
+							<td>${escapeHtml(record.minumObat)}</td>
+							<td>${escapeHtml(record.adaMasalah)}</td>
+							<td>${escapeHtml(record.nikPengawasValidasi)}</td>
+							<td>${escapeHtml(record.namaPengawasValidasi)}</td>
+							<td>${escapeHtml(record.totalJamTidur12JamTerakhir)}</td>
+							<td>${escapeHtml(record.hasilKekuranganJamTidur)}</td>
+							<td>${escapeHtml(record.followUp)}</td>
+							<td>
+								<div class="table-actions">
+									<button type="button" class="btn-small btn-edit fatigue-detail-btn" data-index="${index}">Detail</button>
+									<button type="button" class="btn-small btn-delete fatigue-delete-btn" data-index="${index}">Hapus</button>
+								</div>
+							</td>
+						</tr>
+					`;
+				})
+				.join("");
+
+			// build unique NIK list for datalist
+			const allNikOptions = [...new Set(fatigueRecords.map((r) => escapeHtml(r.nik)).filter(Boolean))];
+
+			fatigueHistory.innerHTML = `
+				<div style="background:#f9f9f9;border:1px solid #e0e0e0;border-radius:8px;padding:12px 16px;margin-bottom:12px;">
+					<strong style="display:block;margin-bottom:10px;font-size:0.92rem;">Filter &amp; Export Excel</strong>
+					<div style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;">
+						<div style="display:flex;flex-direction:column;gap:4px;">
+							<label style="font-size:0.82rem;color:#555;" for="fatigueExportDariTgl">Tanggal Dari</label>
+							<input type="date" id="fatigueExportDariTgl" style="padding:5px 8px;border:1px solid #ccc;border-radius:4px;font-size:0.88rem;" />
+						</div>
+						<div style="display:flex;flex-direction:column;gap:4px;">
+							<label style="font-size:0.82rem;color:#555;" for="fatigueExportSampaiTgl">Tanggal Sampai</label>
+							<input type="date" id="fatigueExportSampaiTgl" style="padding:5px 8px;border:1px solid #ccc;border-radius:4px;font-size:0.88rem;" />
+						</div>
+						<div style="display:flex;flex-direction:column;gap:4px;">
+							<label style="font-size:0.82rem;color:#555;" for="fatigueExportNik">NIK</label>
+							<select id="fatigueExportNik" style="padding:5px 8px;border:1px solid #ccc;border-radius:4px;font-size:0.88rem;min-width:160px;">
+								<option value="">Semua NIK</option>
+								${allNikOptions.map((n) => `<option value="${n}">${n}</option>`).join("")}
+							</select>
+						</div>
+						<button type="button" class="btn-small btn-edit" id="fatigueExportExcelBtn" style="align-self:flex-end;">Export Excel (.xlsx)</button>
+					</div>
+					<p id="fatigueExportInfo" style="font-size:0.8rem;color:#888;margin:8px 0 0;"></p>
+				</div>
+				<div class="table-wrap" id="fatigueHistoryTableWrap">
+					<table class="data-table" id="fatigueHistoryDataTable">
+						<thead>
+							<tr>
+								<th>No</th>
+								<th>Tanggal Submit</th>
+								<th>Nama</th>
+								<th>NIK</th>
+								<th>Jabatan</th>
+								<th>Departemen</th>
+								<th>Shift</th>
+								<th>Tanggal</th>
+								<th>Minum Obat</th>
+								<th>Ada Masalah</th>
+								<th>NIK Pengawas Validasi</th>
+								<th>Nama Pengawas Validasi</th>
+								<th>Total Jam Tidur 12 Jam Terakhir</th>
+								<th>Hasil Kekurangan Jam Tidur</th>
+								<th>Follow Up</th>
+								<th>Aksi</th>
+							</tr>
+						</thead>
+						<tbody>${rows}</tbody>
+					</table>
+				</div>
+			`;
+
+			const fatigueExportExcelBtn = document.getElementById("fatigueExportExcelBtn");
+			const fatigueExportInfo = document.getElementById("fatigueExportInfo");
+			if (fatigueExportExcelBtn) {
+				fatigueExportExcelBtn.addEventListener("click", () => {
+					if (typeof XLSX === "undefined") {
+						fatigueError.textContent = "Library Excel belum siap. Coba beberapa detik lagi.";
+						return;
+					}
+
+					const dariTgl = String(document.getElementById("fatigueExportDariTgl").value || "").trim();
+					const sampaiTgl = String(document.getElementById("fatigueExportSampaiTgl").value || "").trim();
+					const filterNik = String(document.getElementById("fatigueExportNik").value || "").trim();
+
+					const filtered = fatigueRecords.filter((r) => {
+						const tgl = String(r.tanggal || "").trim();
+						if (tgl && dariTgl && tgl < dariTgl) return false;
+						if (tgl && sampaiTgl && tgl > sampaiTgl) return false;
+						if (filterNik && String(r.nik || "").trim() !== filterNik) return false;
+						return true;
+					});
+
+					if (filtered.length === 0) {
+						if (fatigueExportInfo) fatigueExportInfo.textContent = "Tidak ada data yang sesuai filter.";
+						return;
+					}
+					if (fatigueExportInfo) fatigueExportInfo.textContent = "";
+
+					const sheetData = filtered.map((r, i) => ({
+						"No": i + 1,
+						"Tanggal Submit": r.tanggalSubmit || "",
+						"Nama": r.nama || "",
+						"NIK": r.nik || "",
+						"Jabatan": r.jabatan || "",
+						"Departemen": r.departemen || "",
+						"Shift": r.shift || "",
+						"Tanggal": formatFatigueDateDisplay(r.tanggal),
+						"Jam Tidur 1": r.jamTidur1 || "",
+						"Jam Bangun 1": r.jamBangun1 || "",
+						"Jam Tidur 2": r.jamTidur2 || "",
+						"Jam Bangun 2": r.jamBangun2 || "",
+						"Jam Tidur 3": r.jamTidur3 || "",
+						"Jam Bangun 3": r.jamBangun3 || "",
+						"Total Jam Tidur 12 Jam Terakhir": r.totalJamTidur12JamTerakhir || "",
+						"Hasil Kekurangan Jam Tidur": r.hasilKekuranganJamTidur || "",
+						"Apakah Ada Minum Obat": r.minumObat || "",
+						"Keterangan Minum Obat": r.keteranganMinumObat || "",
+						"Apakah Ada Masalah": r.adaMasalah || "",
+						"Keterangan Masalah": r.keteranganMasalah || "",
+						"NIK Pengawas Validasi": r.nikPengawasValidasi || "",
+						"Nama Pengawas Validasi": r.namaPengawasValidasi || "",
+						"Follow Up": r.followUp || "",
+					}));
+
+					const worksheet = XLSX.utils.json_to_sheet(sheetData);
+					const workbook = XLSX.utils.book_new();
+					XLSX.utils.book_append_sheet(workbook, worksheet, "History Fatigue");
+					const dateText = new Date().toISOString().slice(0, 10);
+					XLSX.writeFile(workbook, `history_fatigue_${dateText}.xlsx`);
+				});
+			}
+
+			fatigueHistory.querySelectorAll(".fatigue-detail-btn").forEach((button) => {
+				button.addEventListener("click", () => {
+					const index = Number(button.dataset.index);
+					if (!Number.isInteger(index) || index < 0 || index >= fatigueRecords.length) {
+						return;
+					}
+					const r = fatigueRecords[index];
+					const fields = [
+						["Tanggal Submit", escapeHtml(r.tanggalSubmit)],
+						["Nama", escapeHtml(r.nama)],
+						["NIK", escapeHtml(r.nik)],
+						["Jabatan", escapeHtml(r.jabatan)],
+						["Departemen", escapeHtml(r.departemen)],
+						["Shift", escapeHtml(r.shift)],
+						["Tanggal", escapeHtml(formatFatigueDateDisplay(r.tanggal))],
+						["Jam Tidur 1", escapeHtml(r.jamTidur1)],
+						["Jam Bangun 1", escapeHtml(r.jamBangun1)],
+						["Jam Tidur 2", escapeHtml(r.jamTidur2)],
+						["Jam Bangun 2", escapeHtml(r.jamBangun2)],
+						["Jam Tidur 3", escapeHtml(r.jamTidur3)],
+						["Jam Bangun 3", escapeHtml(r.jamBangun3)],
+						["Total Jam Tidur 12 Jam Terakhir", escapeHtml(r.totalJamTidur12JamTerakhir)],
+						["Hasil Kekurangan Jam Tidur", escapeHtml(r.hasilKekuranganJamTidur)],
+						["Apakah Ada Minum Obat", escapeHtml(r.minumObat)],
+						["Keterangan Minum Obat", escapeHtml(r.keteranganMinumObat || "-")],
+						["Apakah Ada Masalah", escapeHtml(r.adaMasalah)],
+						["Keterangan Masalah", escapeHtml(r.keteranganMasalah || "-")],
+						["NIK Pengawas Validasi", escapeHtml(r.nikPengawasValidasi)],
+						["Nama Pengawas Validasi", escapeHtml(r.namaPengawasValidasi)],
+						["Follow Up", escapeHtml(r.followUp || "-")],
+					];
+					const tableRows = fields
+						.map(([label, value]) => `<tr><th style="text-align:left;padding:6px 12px;background:#f5f5f5;white-space:nowrap;border:1px solid #ddd;">${label}</th><td style="padding:6px 12px;border:1px solid #ddd;">${value}</td></tr>`)
+						.join("");
+
+					const existing = document.getElementById("fatigueDetailModal");
+					if (existing) existing.remove();
+
+					const modal = document.createElement("div");
+					modal.id = "fatigueDetailModal";
+					modal.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px;";
+					modal.innerHTML = `
+						<div style="background:#fff;border-radius:8px;max-width:640px;width:100%;max-height:90vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,0.25);">
+							<div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid #e0e0e0;">
+								<strong style="font-size:1rem;">Detail History Fatigue</strong>
+								<button id="fatigueDetailModalClose" type="button" style="background:none;border:none;font-size:1.4rem;cursor:pointer;line-height:1;">&times;</button>
+							</div>
+							<div style="padding:16px 20px;">
+								<table style="width:100%;border-collapse:collapse;font-size:0.9rem;">
+									<tbody>${tableRows}</tbody>
+								</table>
+							</div>
+						</div>
+					`;
+					document.body.appendChild(modal);
+
+					const closeModal = () => modal.remove();
+					document.getElementById("fatigueDetailModalClose").addEventListener("click", closeModal);
+					modal.addEventListener("click", (e) => { if (e.target === modal) closeModal(); });
+				});
+			});
+
+			fatigueHistory.querySelectorAll(".fatigue-delete-btn").forEach((button) => {
+				button.addEventListener("click", () => {
+					const index = Number(button.dataset.index);
+					if (!Number.isInteger(index) || index < 0 || index >= fatigueRecords.length) {
+						return;
+					}
+
+					const isConfirmed = window.confirm("Yakin ingin menghapus data history fatigue ini?");
+					if (!isConfirmed) {
+						return;
+					}
+
+					fatigueRecords.splice(index, 1);
+					setFatigueHistoryRecords(fatigueRecords);
+					renderFatigueHistoryTable();
+				});
+			});
+		}
+
+		function toMinutes(value) {
+			const text = String(value || "").trim();
+			if (!/^\d{2}:\d{2}$/.test(text)) {
+				return null;
+			}
+
+			const [hoursText, minutesText] = text.split(":");
+			const hours = Number(hoursText);
+			const minutes = Number(minutesText);
+			if (!Number.isFinite(hours) || !Number.isFinite(minutes)) {
+				return null;
+			}
+
+			return hours * 60 + minutes;
+		}
+
+		function getSleepMinutes(sleepTime, wakeTime) {
+			const sleepMinutes = toMinutes(sleepTime);
+			const wakeMinutes = toMinutes(wakeTime);
+			if (sleepMinutes === null || wakeMinutes === null) {
+				return 0;
+			}
+
+			let diff = wakeMinutes - sleepMinutes;
+			if (diff < 0) {
+				diff += 24 * 60;
+			}
+
+			return diff;
+		}
+
+		function formatDuration(totalMinutes) {
+			const safeMinutes = Math.max(0, Number(totalMinutes) || 0);
+			const hours = Math.floor(safeMinutes / 60);
+			const minutes = safeMinutes % 60;
+			return `${hours} Jam ${minutes} Menit`;
+		}
+
+		function updateTotalSleepHours() {
+			const totalMinutes = sleepPairs.reduce((total, pair) => {
+				return total + getSleepMinutes(pair.sleep.value, pair.wake.value);
+			}, 0);
+			const minimumSleepMinutes = 6 * 60;
+			const sleepDeficitMinutes = Math.max(0, minimumSleepMinutes - totalMinutes);
+
+			fatigueTotalJam.value = formatDuration(totalMinutes);
+			fatigueKekuranganJam.value = formatDuration(sleepDeficitMinutes);
+			fatigueKekuranganJam.classList.remove("fatigue-status-safe", "fatigue-status-deficit");
+			fatigueKekuranganJam.classList.add(
+				sleepDeficitMinutes === 0 ? "fatigue-status-safe" : "fatigue-status-deficit",
+			);
+		}
+
+		function resetFatigueForm() {
+			fatigueForm.reset();
+			clearProfileFields();
+			clearSupervisorFields();
+			initFatigueDateSelectors();
+			toggleKeteranganField(fatigueMinumObat, fatigueMinumObatKeteranganField, fatigueMinumObatKeterangan);
+			toggleKeteranganField(fatigueMasalah, fatigueMasalahKeteranganField, fatigueMasalahKeterangan);
+			updateTotalSleepHours();
+			validateConditionalKeterangan();
+		}
+
+		fatigueNik.addEventListener("input", syncUserByNik);
+		fatigueNikPengawas.addEventListener("input", syncSupervisorByNik);
+		fatigueMinumObat.addEventListener("change", () => {
+			toggleKeteranganField(
+				fatigueMinumObat,
+				fatigueMinumObatKeteranganField,
+				fatigueMinumObatKeterangan,
+			);
+			validateConditionalKeterangan();
+		});
+		fatigueMasalah.addEventListener("change", () => {
+			toggleKeteranganField(fatigueMasalah, fatigueMasalahKeteranganField, fatigueMasalahKeterangan);
+			validateConditionalKeterangan();
+		});
+		fatigueMinumObatKeterangan.addEventListener("input", validateConditionalKeterangan);
+		fatigueMasalahKeterangan.addEventListener("input", validateConditionalKeterangan);
+		sleepPairs.forEach((pair) => {
+			pair.sleep.addEventListener("input", updateTotalSleepHours);
+			pair.wake.addEventListener("input", updateTotalSleepHours);
+		});
+
+		fatigueForm.addEventListener("submit", async (event) => {
+			event.preventDefault();
+			fatigueError.textContent = "";
+			fatigueSuccess.textContent = "";
+
+			await runWithButtonLoading(submitFatigueBtn, "Menyimpan...", async () => {
+				const selectedWorker = syncUserByNik();
+				if (!selectedWorker) {
+					fatigueError.textContent = "NIK pekerja harus dipilih dari Daftar User.";
+					return;
+				}
+
+				if (!String(fatigueShift.value || "").trim()) {
+					fatigueError.textContent = "Shift wajib dipilih.";
+					return;
+				}
+
+				const selectedDate = getFatigueSelectedDate();
+				if (!selectedDate) {
+					fatigueError.textContent = "Tanggal wajib dipilih.";
+					return;
+				}
+
+				const selectedSupervisor = syncSupervisorByNik();
+				if (!selectedSupervisor) {
+					fatigueError.textContent = "NIK Pengawas Validasi harus dipilih dari Daftar User.";
+					return;
+				}
+
+				if (!validateConditionalKeterangan()) {
+					return;
+				}
+
+				const fatigueData = {
+					tanggalSubmit: new Date().toLocaleString("id-ID"),
+					nama: String(fatigueNama.value || "").trim(),
+					nik: String(fatigueNik.value || "").trim(),
+					jabatan: String(fatigueJabatan.value || "").trim(),
+					departemen: String(fatigueDepartemen.value || "").trim(),
+					shift: String(fatigueShift.value || "").trim(),
+					tanggal: selectedDate,
+					jamTidur1: String(fatigueJamTidur1.value || "").trim(),
+					jamBangun1: String(fatigueJamBangun1.value || "").trim(),
+					jamTidur2: String(fatigueJamTidur2.value || "").trim(),
+					jamBangun2: String(fatigueJamBangun2.value || "").trim(),
+					jamTidur3: String(fatigueJamTidur3.value || "").trim(),
+					jamBangun3: String(fatigueJamBangun3.value || "").trim(),
+					minumObat: String(fatigueMinumObat.value || "").trim(),
+					keteranganMinumObat: String(fatigueMinumObatKeterangan.value || "").trim(),
+					adaMasalah: String(fatigueMasalah.value || "").trim(),
+					keteranganMasalah: String(fatigueMasalahKeterangan.value || "").trim(),
+					nikPengawasValidasi: String(fatigueNikPengawas.value || "").trim(),
+					namaPengawasValidasi: String(fatigueNamaPengawas.value || "").trim(),
+					totalJamTidur12JamTerakhir: String(fatigueTotalJam.value || "").trim(),
+					hasilKekuranganJamTidur: String(fatigueKekuranganJam.value || "").trim(),
+					followUp: String(fatigueFollowUp.value || "").trim(),
+				};
+
+				fatigueRecords = [fatigueData, ...fatigueRecords];
+				setFatigueHistoryRecords(fatigueRecords);
+				renderFatigueHistoryTable();
+				fatigueSuccess.textContent = "Data history fatigue berhasil disubmit.";
+				resetFatigueForm();
+			});
+		});
+
+		toggleKeteranganField(fatigueMinumObat, fatigueMinumObatKeteranganField, fatigueMinumObatKeterangan);
+		toggleKeteranganField(fatigueMasalah, fatigueMasalahKeteranganField, fatigueMasalahKeterangan);
+		initFatigueDateSelectors();
+		updateTotalSleepHours();
+		validateConditionalKeterangan();
+		renderFatigueHistoryTable();
+	}
+
 	function renderTasklistContent() {
 		const profile = getReporterProfile(session);
 		const sessionUsername = String(session.username || "").trim().toLowerCase();
@@ -5726,6 +6434,11 @@ function renderDashboard(session) {
 
 		if (menuName === "Daftar PIC") {
 			renderPicContent();
+			return;
+		}
+
+		if (menuName === "History Fatigue") {
+			renderHistoryFatigueContent();
 			return;
 		}
 
