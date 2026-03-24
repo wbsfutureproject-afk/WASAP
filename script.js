@@ -77,6 +77,38 @@ const ROLE_MENUS = {
 	User: ["My Profile", "Achievement", "Tasklist", "Logout"],
 };
 
+const FATIGUE_MENU_USERNAMES = ["0236900038"];
+
+function canAccessHistoryFatigue(session) {
+	const role = String(session?.role || "").trim();
+	if (role === "Super Admin") {
+		return true;
+	}
+
+	const username = String(session?.username || "").trim();
+	return FATIGUE_MENU_USERNAMES.includes(username);
+}
+
+function getMenuItemsForSession(session) {
+	const baseItems = [...(ROLE_MENUS[session?.role] || [])];
+	if (!canAccessHistoryFatigue(session)) {
+		return baseItems;
+	}
+
+	if (baseItems.includes("History Fatigue")) {
+		return baseItems;
+	}
+
+	const logoutIndex = baseItems.indexOf("Logout");
+	if (logoutIndex === -1) {
+		baseItems.push("History Fatigue");
+		return baseItems;
+	}
+
+	baseItems.splice(logoutIndex, 0, "History Fatigue");
+	return baseItems;
+}
+
 function resolveApiBaseUrl() {
 	const metaElement = document.querySelector('meta[name="api-base-url"]');
 	const configuredValue = String(metaElement?.content || "").trim();
@@ -1337,7 +1369,7 @@ function getTasklistCount(session) {
 }
 
 function renderDashboard(session) {
-	const menuItems = ROLE_MENUS[session.role] || [];
+	const menuItems = getMenuItemsForSession(session);
 	const menuHtml = menuItems
 		.map((item) => {
 			const isLogout = item === "Logout";
@@ -5392,7 +5424,7 @@ function renderDashboard(session) {
 	}
 
 	function renderHistoryFatigueContent() {
-		if (session.role !== "Super Admin") {
+		if (!canAccessHistoryFatigue(session)) {
 			renderDefaultContent("History Fatigue");
 			return;
 		}
