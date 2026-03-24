@@ -5403,153 +5403,191 @@ function renderDashboard(session) {
 			.filter((item, index, array) => item && array.indexOf(item) === index);
 		let fatigueRecords = getFatigueHistoryRecords();
 
-		contentArea.innerHTML = `
-			<h2>History Fatigue</h2>
-			<p class="subtitle">Isi NIK untuk sinkron otomatis Nama, Jabatan, dan Departemen dari Daftar User.</p>
-			${users.length === 0 ? '<p class="error">Daftar User belum tersedia. Tambahkan user pada menu Daftar User terlebih dahulu.</p>' : ""}
-			<form id="fatigueForm" class="form-grid" novalidate>
-				<div class="field">
-					<label for="fatigueNama">Nama</label>
-					<input id="fatigueNama" name="nama" type="text" readonly />
-				</div>
-				<div class="field">
-					<label for="fatigueNik">NIK</label>
-					<input id="fatigueNik" name="nik" type="text" list="fatigueNikOptions" placeholder="Masukkan NIK" autocomplete="off" />
-					<datalist id="fatigueNikOptions">
-						${nikOptions.map((nik) => `<option value="${nik}"></option>`).join("")}
-					</datalist>
-				</div>
-				<div class="field">
-					<label for="fatigueJabatan">Jabatan</label>
-					<input id="fatigueJabatan" name="jabatan" type="text" readonly />
-				</div>
-				<div class="field">
-					<label for="fatigueDepartemen">Departemen</label>
-					<input id="fatigueDepartemen" name="departemen" type="text" readonly />
-				</div>
-				<div class="field">
-					<label for="fatigueShift">Shift</label>
-					<select id="fatigueShift" name="shift" required>
-						<option value="">Pilih Shift</option>
-						<option value="Shift 1">Shift 1</option>
-						<option value="Shift 2">Shift 2</option>
-					</select>
-				</div>
-				<div class="field">
-					<label for="fatigueTanggalInput">Tanggal</label>
-					<input id="fatigueTanggalInput" name="tanggal" type="date" required />
-				</div>
+		function getFatigueFormMarkup() {
+			return `
+				<h2>History Fatigue</h2>
+				<p class="subtitle">Isi NIK untuk sinkron otomatis Nama, Jabatan, dan Departemen dari Daftar User.</p>
+				${users.length === 0 ? '<p class="error">Daftar User belum tersedia. Tambahkan user pada menu Daftar User terlebih dahulu.</p>' : ""}
+				<form id="fatigueForm" class="form-grid" novalidate>
+					<div class="field">
+						<label for="fatigueNama">Nama</label>
+						<input id="fatigueNama" name="nama" type="text" readonly />
+					</div>
+					<div class="field">
+						<label for="fatigueNik">NIK</label>
+						<input id="fatigueNik" name="nik" type="text" list="fatigueNikOptions" placeholder="Masukkan NIK" autocomplete="off" />
+						<datalist id="fatigueNikOptions">
+							${nikOptions.map((nik) => `<option value="${nik}"></option>`).join("")}
+						</datalist>
+					</div>
+					<div class="field">
+						<label for="fatigueJabatan">Jabatan</label>
+						<input id="fatigueJabatan" name="jabatan" type="text" readonly />
+					</div>
+					<div class="field">
+						<label for="fatigueDepartemen">Departemen</label>
+						<input id="fatigueDepartemen" name="departemen" type="text" readonly />
+					</div>
+					<div class="field">
+						<label for="fatigueShift">Shift</label>
+						<select id="fatigueShift" name="shift" required>
+							<option value="">Pilih Shift</option>
+							<option value="Shift 1">Shift 1</option>
+							<option value="Shift 2">Shift 2</option>
+						</select>
+					</div>
+					<div class="field">
+						<label for="fatigueTanggalInput">Tanggal</label>
+						<input id="fatigueTanggalInput" name="tanggal" type="date" required />
+					</div>
 
-				<div class="field">
-					<label for="fatigueJamTidur1">Jam Tidur 1</label>
-					<input id="fatigueJamTidur1" name="jamTidur1" type="time" />
-				</div>
-				<div class="field">
-					<label for="fatigueJamBangun1">Jam Bangun 1</label>
-					<input id="fatigueJamBangun1" name="jamBangun1" type="time" />
-				</div>
+					<div class="field">
+						<label for="fatigueJamTidur1">Jam Tidur 1</label>
+						<input id="fatigueJamTidur1" name="jamTidur1" type="time" />
+					</div>
+					<div class="field">
+						<label for="fatigueJamBangun1">Jam Bangun 1</label>
+						<input id="fatigueJamBangun1" name="jamBangun1" type="time" />
+					</div>
 
-				<div class="field">
-					<label for="fatigueJamTidur2">Jam Tidur 2</label>
-					<input id="fatigueJamTidur2" name="jamTidur2" type="time" />
-				</div>
-				<div class="field">
-					<label for="fatigueJamBangun2">Jam Bangun 2</label>
-					<input id="fatigueJamBangun2" name="jamBangun2" type="time" />
-				</div>
+					<div class="field">
+						<label for="fatigueJamTidur2">Jam Tidur 2</label>
+						<input id="fatigueJamTidur2" name="jamTidur2" type="time" />
+					</div>
+					<div class="field">
+						<label for="fatigueJamBangun2">Jam Bangun 2</label>
+						<input id="fatigueJamBangun2" name="jamBangun2" type="time" />
+					</div>
 
-				<div class="field">
-					<label for="fatigueJamTidur3">Jam Tidur 3</label>
-					<input id="fatigueJamTidur3" name="jamTidur3" type="time" />
-				</div>
-				<div class="field">
-					<label for="fatigueJamBangun3">Jam Bangun 3</label>
-					<input id="fatigueJamBangun3" name="jamBangun3" type="time" />
-				</div>
+					<div class="field">
+						<label for="fatigueJamTidur3">Jam Tidur 3</label>
+						<input id="fatigueJamTidur3" name="jamTidur3" type="time" />
+					</div>
+					<div class="field">
+						<label for="fatigueJamBangun3">Jam Bangun 3</label>
+						<input id="fatigueJamBangun3" name="jamBangun3" type="time" />
+					</div>
 
-				<div class="field">
-					<label for="fatigueMinumObat">Apakah Ada Minum Obat</label>
-					<select id="fatigueMinumObat" name="minumObat">
-						<option value="">Pilih Opsi</option>
-						<option value="YA">YA</option>
-						<option value="TIDAK">TIDAK</option>
-					</select>
-				</div>
-				<div class="field">
-					<label for="fatigueMasalah">Apakah Ada Masalah</label>
-					<select id="fatigueMasalah" name="adaMasalah">
-						<option value="">Pilih Opsi</option>
-						<option value="YA">YA</option>
-						<option value="TIDAK">TIDAK</option>
-					</select>
-				</div>
-				<div class="field field-full hidden" id="fatigueMinumObatKeteranganField">
-					<label for="fatigueMinumObatKeterangan">Keterangan Minum Obat</label>
-					<textarea id="fatigueMinumObatKeterangan" name="keteranganMinumObat" rows="3" placeholder="Tulis keterangan minum obat..."></textarea>
-				</div>
-				<div class="field field-full hidden" id="fatigueMasalahKeteranganField">
-					<label for="fatigueMasalahKeterangan">Keterangan Masalah</label>
-					<textarea id="fatigueMasalahKeterangan" name="keteranganMasalah" rows="3" placeholder="Tulis keterangan masalah..."></textarea>
-				</div>
-				<div class="field">
-					<label for="fatigueNikPengawas">NIK Pengawas Validasi</label>
-					<input id="fatigueNikPengawas" name="nikPengawasValidasi" type="text" list="fatigueNikOptions" placeholder="Masukkan NIK Pengawas" autocomplete="off" />
-				</div>
-				<div class="field">
-					<label for="fatigueNamaPengawas">Nama Pengawas Validasi</label>
-					<input id="fatigueNamaPengawas" name="namaPengawasValidasi" type="text" readonly />
-				</div>
+					<div class="field">
+						<label for="fatigueMinumObat">Apakah Ada Minum Obat</label>
+						<select id="fatigueMinumObat" name="minumObat">
+							<option value="">Pilih Opsi</option>
+							<option value="YA">YA</option>
+							<option value="TIDAK">TIDAK</option>
+						</select>
+					</div>
+					<div class="field">
+						<label for="fatigueMasalah">Apakah Ada Masalah</label>
+						<select id="fatigueMasalah" name="adaMasalah">
+							<option value="">Pilih Opsi</option>
+							<option value="YA">YA</option>
+							<option value="TIDAK">TIDAK</option>
+						</select>
+					</div>
+					<div class="field field-full hidden" id="fatigueMinumObatKeteranganField">
+						<label for="fatigueMinumObatKeterangan">Keterangan Minum Obat</label>
+						<textarea id="fatigueMinumObatKeterangan" name="keteranganMinumObat" rows="3" placeholder="Tulis keterangan minum obat..."></textarea>
+					</div>
+					<div class="field field-full hidden" id="fatigueMasalahKeteranganField">
+						<label for="fatigueMasalahKeterangan">Keterangan Masalah</label>
+						<textarea id="fatigueMasalahKeterangan" name="keteranganMasalah" rows="3" placeholder="Tulis keterangan masalah..."></textarea>
+					</div>
+					<div class="field">
+						<label for="fatigueNikPengawas">NIK Pengawas Validasi</label>
+						<input id="fatigueNikPengawas" name="nikPengawasValidasi" type="text" list="fatigueNikOptions" placeholder="Masukkan NIK Pengawas" autocomplete="off" />
+					</div>
+					<div class="field">
+						<label for="fatigueNamaPengawas">Nama Pengawas Validasi</label>
+						<input id="fatigueNamaPengawas" name="namaPengawasValidasi" type="text" readonly />
+					</div>
 
-				<div class="field field-full">
-					<label for="fatigueTotalJam">Total Jam Tidur 12 Jam Terakhir</label>
-					<input id="fatigueTotalJam" name="totalJamTidur12JamTerakhir" type="text" readonly value="0 Jam 0 Menit" />
-				</div>
-				<div class="field field-full">
-					<label for="fatigueKekuranganJam">Hasil Kekurangan Jam Tidur (Minimum 6 Jam)</label>
-					<input id="fatigueKekuranganJam" name="hasilKekuranganJamTidur" type="text" readonly value="6 Jam 0 Menit" />
-				</div>
-				<div class="field field-full">
-					<label for="fatigueFollowUp">Follow Up</label>
-					<textarea id="fatigueFollowUp" name="followUp" rows="3" placeholder="Tulis follow up..."></textarea>
-				</div>
-				<div class="inline-actions field-full">
-					<button type="submit" id="submitFatigueBtn" class="btn-primary">Submit</button>
-				</div>
-			</form>
-			<p id="fatigueError" class="error"></p>
-			<p id="fatigueSuccess" class="subtitle"></p>
-			<div id="fatigueHistory"></div>
-		`;
+					<div class="field field-full">
+						<label for="fatigueTotalJam">Total Jam Tidur 12 Jam Terakhir</label>
+						<input id="fatigueTotalJam" name="totalJamTidur12JamTerakhir" type="text" readonly value="0 Jam 0 Menit" />
+					</div>
+					<div class="field field-full">
+						<label for="fatigueKekuranganJam">Hasil Kekurangan Jam Tidur (Minimum 6 Jam)</label>
+						<input id="fatigueKekuranganJam" name="hasilKekuranganJamTidur" type="text" readonly value="6 Jam 0 Menit" />
+					</div>
+					<div class="field field-full">
+						<label for="fatigueFollowUp">Follow Up</label>
+						<textarea id="fatigueFollowUp" name="followUp" rows="3" placeholder="Tulis follow up..."></textarea>
+					</div>
+					<div class="inline-actions field-full">
+						<button type="submit" id="submitFatigueBtn" class="btn-primary">Submit</button>
+					</div>
+				</form>
+				<p id="fatigueError" class="error"></p>
+				<p id="fatigueSuccess" class="subtitle"></p>
+				<div id="fatigueHistory"></div>
+			`;
+		}
 
-		const fatigueForm = document.getElementById("fatigueForm");
-		const fatigueNik = document.getElementById("fatigueNik");
-		const fatigueNama = document.getElementById("fatigueNama");
-		const fatigueJabatan = document.getElementById("fatigueJabatan");
-		const fatigueDepartemen = document.getElementById("fatigueDepartemen");
-		const fatigueShift = document.getElementById("fatigueShift");
-		const fatigueTanggalInput = document.getElementById("fatigueTanggalInput");
-		const fatigueMinumObat = document.getElementById("fatigueMinumObat");
-		const fatigueMasalah = document.getElementById("fatigueMasalah");
-		const fatigueMinumObatKeteranganField = document.getElementById("fatigueMinumObatKeteranganField");
-		const fatigueMasalahKeteranganField = document.getElementById("fatigueMasalahKeteranganField");
-		const fatigueMinumObatKeterangan = document.getElementById("fatigueMinumObatKeterangan");
-		const fatigueMasalahKeterangan = document.getElementById("fatigueMasalahKeterangan");
-		const fatigueNikPengawas = document.getElementById("fatigueNikPengawas");
-		const fatigueNamaPengawas = document.getElementById("fatigueNamaPengawas");
-		const fatigueTotalJam = document.getElementById("fatigueTotalJam");
-		const fatigueKekuranganJam = document.getElementById("fatigueKekuranganJam");
-		const fatigueFollowUp = document.getElementById("fatigueFollowUp");
-		const submitFatigueBtn = document.getElementById("submitFatigueBtn");
-		const fatigueError = document.getElementById("fatigueError");
-		const fatigueSuccess = document.getElementById("fatigueSuccess");
-		const fatigueHistory = document.getElementById("fatigueHistory");
+		function getFatigueFormElements() {
+			return {
+				fatigueForm: document.getElementById("fatigueForm"),
+				fatigueNik: document.getElementById("fatigueNik"),
+				fatigueNama: document.getElementById("fatigueNama"),
+				fatigueJabatan: document.getElementById("fatigueJabatan"),
+				fatigueDepartemen: document.getElementById("fatigueDepartemen"),
+				fatigueShift: document.getElementById("fatigueShift"),
+				fatigueTanggalInput: document.getElementById("fatigueTanggalInput"),
+				fatigueMinumObat: document.getElementById("fatigueMinumObat"),
+				fatigueMasalah: document.getElementById("fatigueMasalah"),
+				fatigueMinumObatKeteranganField: document.getElementById("fatigueMinumObatKeteranganField"),
+				fatigueMasalahKeteranganField: document.getElementById("fatigueMasalahKeteranganField"),
+				fatigueMinumObatKeterangan: document.getElementById("fatigueMinumObatKeterangan"),
+				fatigueMasalahKeterangan: document.getElementById("fatigueMasalahKeterangan"),
+				fatigueNikPengawas: document.getElementById("fatigueNikPengawas"),
+				fatigueNamaPengawas: document.getElementById("fatigueNamaPengawas"),
+				fatigueTotalJam: document.getElementById("fatigueTotalJam"),
+				fatigueKekuranganJam: document.getElementById("fatigueKekuranganJam"),
+				fatigueFollowUp: document.getElementById("fatigueFollowUp"),
+				submitFatigueBtn: document.getElementById("submitFatigueBtn"),
+				fatigueError: document.getElementById("fatigueError"),
+				fatigueSuccess: document.getElementById("fatigueSuccess"),
+				fatigueHistory: document.getElementById("fatigueHistory"),
+				fatigueJamTidur1: document.getElementById("fatigueJamTidur1"),
+				fatigueJamBangun1: document.getElementById("fatigueJamBangun1"),
+				fatigueJamTidur2: document.getElementById("fatigueJamTidur2"),
+				fatigueJamBangun2: document.getElementById("fatigueJamBangun2"),
+				fatigueJamTidur3: document.getElementById("fatigueJamTidur3"),
+				fatigueJamBangun3: document.getElementById("fatigueJamBangun3"),
+			};
+		}
 
-		const fatigueJamTidur1 = document.getElementById("fatigueJamTidur1");
-		const fatigueJamBangun1 = document.getElementById("fatigueJamBangun1");
-		const fatigueJamTidur2 = document.getElementById("fatigueJamTidur2");
-		const fatigueJamBangun2 = document.getElementById("fatigueJamBangun2");
-		const fatigueJamTidur3 = document.getElementById("fatigueJamTidur3");
-		const fatigueJamBangun3 = document.getElementById("fatigueJamBangun3");
+		contentArea.innerHTML = getFatigueFormMarkup();
+
+		const {
+			fatigueForm,
+			fatigueNik,
+			fatigueNama,
+			fatigueJabatan,
+			fatigueDepartemen,
+			fatigueShift,
+			fatigueTanggalInput,
+			fatigueMinumObat,
+			fatigueMasalah,
+			fatigueMinumObatKeteranganField,
+			fatigueMasalahKeteranganField,
+			fatigueMinumObatKeterangan,
+			fatigueMasalahKeterangan,
+			fatigueNikPengawas,
+			fatigueNamaPengawas,
+			fatigueTotalJam,
+			fatigueKekuranganJam,
+			fatigueFollowUp,
+			submitFatigueBtn,
+			fatigueError,
+			fatigueSuccess,
+			fatigueHistory,
+			fatigueJamTidur1,
+			fatigueJamBangun1,
+			fatigueJamTidur2,
+			fatigueJamBangun2,
+			fatigueJamTidur3,
+			fatigueJamBangun3,
+		} = getFatigueFormElements();
 
 		const sleepPairs = [
 			{
@@ -5997,99 +6035,111 @@ function renderDashboard(session) {
 			validateConditionalKeterangan();
 		}
 
-		fatigueNik.addEventListener("input", syncUserByNik);
-		fatigueNikPengawas.addEventListener("input", syncSupervisorByNik);
-		fatigueMinumObat.addEventListener("change", () => {
-			toggleKeteranganField(
-				fatigueMinumObat,
-				fatigueMinumObatKeteranganField,
-				fatigueMinumObatKeterangan,
-			);
-			validateConditionalKeterangan();
-		});
-		fatigueMasalah.addEventListener("change", () => {
-			toggleKeteranganField(fatigueMasalah, fatigueMasalahKeteranganField, fatigueMasalahKeterangan);
-			validateConditionalKeterangan();
-		});
-		fatigueMinumObatKeterangan.addEventListener("input", validateConditionalKeterangan);
-		fatigueMasalahKeterangan.addEventListener("input", validateConditionalKeterangan);
-		sleepPairs.forEach((pair) => {
-			pair.sleep.addEventListener("input", updateTotalSleepHours);
-			pair.wake.addEventListener("input", updateTotalSleepHours);
-		});
+		function buildFatigueRecord() {
+			return {
+				tanggalSubmit: new Date().toLocaleString("id-ID"),
+				nama: String(fatigueNama.value || "").trim(),
+				nik: String(fatigueNik.value || "").trim(),
+				jabatan: String(fatigueJabatan.value || "").trim(),
+				departemen: String(fatigueDepartemen.value || "").trim(),
+				shift: String(fatigueShift.value || "").trim(),
+				tanggal: getFatigueSelectedDate(),
+				jamTidur1: String(fatigueJamTidur1.value || "").trim(),
+				jamBangun1: String(fatigueJamBangun1.value || "").trim(),
+				jamTidur2: String(fatigueJamTidur2.value || "").trim(),
+				jamBangun2: String(fatigueJamBangun2.value || "").trim(),
+				jamTidur3: String(fatigueJamTidur3.value || "").trim(),
+				jamBangun3: String(fatigueJamBangun3.value || "").trim(),
+				minumObat: String(fatigueMinumObat.value || "").trim(),
+				keteranganMinumObat: String(fatigueMinumObatKeterangan.value || "").trim(),
+				adaMasalah: String(fatigueMasalah.value || "").trim(),
+				keteranganMasalah: String(fatigueMasalahKeterangan.value || "").trim(),
+				nikPengawasValidasi: String(fatigueNikPengawas.value || "").trim(),
+				namaPengawasValidasi: String(fatigueNamaPengawas.value || "").trim(),
+				totalJamTidur12JamTerakhir: String(fatigueTotalJam.value || "").trim(),
+				hasilKekuranganJamTidur: String(fatigueKekuranganJam.value || "").trim(),
+				followUp: String(fatigueFollowUp.value || "").trim(),
+			};
+		}
 
-		fatigueForm.addEventListener("submit", async (event) => {
-			event.preventDefault();
-			fatigueError.textContent = "";
-			fatigueSuccess.textContent = "";
+		function validateFatigueSubmission() {
+			const selectedWorker = syncUserByNik();
+			if (!selectedWorker) {
+				fatigueError.textContent = "NIK pekerja harus dipilih dari Daftar User.";
+				return false;
+			}
 
-			await runWithButtonLoading(submitFatigueBtn, "Menyimpan...", async () => {
-				const selectedWorker = syncUserByNik();
-				if (!selectedWorker) {
-					fatigueError.textContent = "NIK pekerja harus dipilih dari Daftar User.";
-					return;
-				}
+			if (!String(fatigueShift.value || "").trim()) {
+				fatigueError.textContent = "Shift wajib dipilih.";
+				return false;
+			}
 
-				if (!String(fatigueShift.value || "").trim()) {
-					fatigueError.textContent = "Shift wajib dipilih.";
-					return;
-				}
+			if (!getFatigueSelectedDate()) {
+				fatigueError.textContent = "Tanggal wajib dipilih.";
+				return false;
+			}
 
-				const selectedDate = getFatigueSelectedDate();
-				if (!selectedDate) {
-					fatigueError.textContent = "Tanggal wajib dipilih.";
-					return;
-				}
+			const selectedSupervisor = syncSupervisorByNik();
+			if (!selectedSupervisor) {
+				fatigueError.textContent = "NIK Pengawas Validasi harus dipilih dari Daftar User.";
+				return false;
+			}
 
-				const selectedSupervisor = syncSupervisorByNik();
-				if (!selectedSupervisor) {
-					fatigueError.textContent = "NIK Pengawas Validasi harus dipilih dari Daftar User.";
-					return;
-				}
+			return validateConditionalKeterangan();
+		}
 
-				if (!validateConditionalKeterangan()) {
-					return;
-				}
-
-				const fatigueData = {
-					tanggalSubmit: new Date().toLocaleString("id-ID"),
-					nama: String(fatigueNama.value || "").trim(),
-					nik: String(fatigueNik.value || "").trim(),
-					jabatan: String(fatigueJabatan.value || "").trim(),
-					departemen: String(fatigueDepartemen.value || "").trim(),
-					shift: String(fatigueShift.value || "").trim(),
-					tanggal: selectedDate,
-					jamTidur1: String(fatigueJamTidur1.value || "").trim(),
-					jamBangun1: String(fatigueJamBangun1.value || "").trim(),
-					jamTidur2: String(fatigueJamTidur2.value || "").trim(),
-					jamBangun2: String(fatigueJamBangun2.value || "").trim(),
-					jamTidur3: String(fatigueJamTidur3.value || "").trim(),
-					jamBangun3: String(fatigueJamBangun3.value || "").trim(),
-					minumObat: String(fatigueMinumObat.value || "").trim(),
-					keteranganMinumObat: String(fatigueMinumObatKeterangan.value || "").trim(),
-					adaMasalah: String(fatigueMasalah.value || "").trim(),
-					keteranganMasalah: String(fatigueMasalahKeterangan.value || "").trim(),
-					nikPengawasValidasi: String(fatigueNikPengawas.value || "").trim(),
-					namaPengawasValidasi: String(fatigueNamaPengawas.value || "").trim(),
-					totalJamTidur12JamTerakhir: String(fatigueTotalJam.value || "").trim(),
-					hasilKekuranganJamTidur: String(fatigueKekuranganJam.value || "").trim(),
-					followUp: String(fatigueFollowUp.value || "").trim(),
-				};
-
-				fatigueRecords = [fatigueData, ...fatigueRecords];
-				setFatigueHistoryRecords(fatigueRecords);
-				renderFatigueHistoryTable();
-				fatigueSuccess.textContent = "Data history fatigue berhasil disubmit.";
-				resetFatigueForm();
+		function bindFatigueFormEvents() {
+			fatigueNik.addEventListener("input", syncUserByNik);
+			fatigueNikPengawas.addEventListener("input", syncSupervisorByNik);
+			fatigueMinumObat.addEventListener("change", () => {
+				toggleKeteranganField(
+					fatigueMinumObat,
+					fatigueMinumObatKeteranganField,
+					fatigueMinumObatKeterangan,
+				);
+				validateConditionalKeterangan();
 			});
-		});
+			fatigueMasalah.addEventListener("change", () => {
+				toggleKeteranganField(fatigueMasalah, fatigueMasalahKeteranganField, fatigueMasalahKeterangan);
+				validateConditionalKeterangan();
+			});
+			fatigueMinumObatKeterangan.addEventListener("input", validateConditionalKeterangan);
+			fatigueMasalahKeterangan.addEventListener("input", validateConditionalKeterangan);
+			sleepPairs.forEach((pair) => {
+				pair.sleep.addEventListener("input", updateTotalSleepHours);
+				pair.wake.addEventListener("input", updateTotalSleepHours);
+			});
 
-		toggleKeteranganField(fatigueMinumObat, fatigueMinumObatKeteranganField, fatigueMinumObatKeterangan);
-		toggleKeteranganField(fatigueMasalah, fatigueMasalahKeteranganField, fatigueMasalahKeterangan);
-		initFatigueDateSelectors();
-		updateTotalSleepHours();
-		validateConditionalKeterangan();
-		renderFatigueHistoryTable();
+			fatigueForm.addEventListener("submit", async (event) => {
+				event.preventDefault();
+				fatigueError.textContent = "";
+				fatigueSuccess.textContent = "";
+
+				await runWithButtonLoading(submitFatigueBtn, "Menyimpan...", async () => {
+					if (!validateFatigueSubmission()) {
+						return;
+					}
+
+					fatigueRecords = [buildFatigueRecord(), ...fatigueRecords];
+					setFatigueHistoryRecords(fatigueRecords);
+					renderFatigueHistoryTable();
+					fatigueSuccess.textContent = "Data history fatigue berhasil disubmit.";
+					resetFatigueForm();
+				});
+			});
+		}
+
+		function initializeFatigueForm() {
+			toggleKeteranganField(fatigueMinumObat, fatigueMinumObatKeteranganField, fatigueMinumObatKeterangan);
+			toggleKeteranganField(fatigueMasalah, fatigueMasalahKeteranganField, fatigueMasalahKeterangan);
+			initFatigueDateSelectors();
+			updateTotalSleepHours();
+			validateConditionalKeterangan();
+			renderFatigueHistoryTable();
+			bindFatigueFormEvents();
+		}
+
+		initializeFatigueForm();
 	}
 
 	function renderTasklistContent() {
