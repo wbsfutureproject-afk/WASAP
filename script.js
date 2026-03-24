@@ -5604,14 +5604,20 @@ function renderDashboard(session) {
 			},
 		];
 
+		const workerProfileFields = [fatigueNama, fatigueJabatan, fatigueDepartemen];
+
+		function clearFieldValues(fieldElements) {
+			fieldElements.forEach((fieldElement) => {
+				fieldElement.value = "";
+			});
+		}
+
 		function clearProfileFields() {
-			fatigueNama.value = "";
-			fatigueJabatan.value = "";
-			fatigueDepartemen.value = "";
+			clearFieldValues(workerProfileFields);
 		}
 
 		function clearSupervisorFields() {
-			fatigueNamaPengawas.value = "";
+			clearFieldValues([fatigueNamaPengawas]);
 		}
 
 		function escapeHtml(value) {
@@ -5674,42 +5680,44 @@ function renderDashboard(session) {
 			return true;
 		}
 
-		function syncUserByNik() {
-			const nik = String(fatigueNik.value || "").trim();
+		function syncManagedUserFieldsByNik(nikValue, onClear, onSync) {
+			const normalizedNik = String(nikValue || "").trim();
 
-			if (!nik) {
-				clearProfileFields();
+			if (!normalizedNik) {
+				onClear();
 				return null;
 			}
 
-			const selected = getManagedUserByNik(nik);
+			const selected = getManagedUserByNik(normalizedNik);
 			if (!selected) {
-				clearProfileFields();
+				onClear();
 				return null;
 			}
 
-			fatigueNama.value = String(selected.namaLengkap || selected.username || "").trim();
-			fatigueJabatan.value = String(selected.jabatan || "").trim();
-			fatigueDepartemen.value = String(selected.departemen || "").trim();
+			onSync(selected);
 			return selected;
 		}
 
+		function syncUserByNik() {
+			return syncManagedUserFieldsByNik(
+				fatigueNik.value,
+				clearProfileFields,
+				(selected) => {
+					fatigueNama.value = String(selected.namaLengkap || selected.username || "").trim();
+					fatigueJabatan.value = String(selected.jabatan || "").trim();
+					fatigueDepartemen.value = String(selected.departemen || "").trim();
+				},
+			);
+		}
+
 		function syncSupervisorByNik() {
-			const nikPengawas = String(fatigueNikPengawas.value || "").trim();
-
-			if (!nikPengawas) {
-				clearSupervisorFields();
-				return null;
-			}
-
-			const selected = getManagedUserByNik(nikPengawas);
-			if (!selected) {
-				clearSupervisorFields();
-				return null;
-			}
-
-			fatigueNamaPengawas.value = String(selected.namaLengkap || selected.username || "").trim();
-			return selected;
+			return syncManagedUserFieldsByNik(
+				fatigueNikPengawas.value,
+				clearSupervisorFields,
+				(selected) => {
+					fatigueNamaPengawas.value = String(selected.namaLengkap || selected.username || "").trim();
+				},
+			);
 		}
 
 		function getFatigueExportNikOptions() {
