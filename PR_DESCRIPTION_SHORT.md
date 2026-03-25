@@ -1,15 +1,14 @@
 ## Summary
 
-- Menambahkan auth bearer token untuk API dan response login dengan `data.token`.
-- Menambahkan CRUD endpoint per-item untuk KTA, TTA, users, departments, dan PICs.
-- Mengubah target harian kelompok jabatan `PENGAWAS` dan `LEVEL 1 MGT` dari `2 KTA + 1 TTA` menjadi `1 KTA + 2 TTA`.
-- Frontend dipindah ke strict API flow + auto logout saat `401`.
-- Menambahkan loading + lock form untuk cegah double-submit (login, KTA, TTA, task process, user, departemen, PIC).
-- Menambahkan guardrail rilis: `npm run check`, `npm run smoke`, checklist rilis, dan template PR.
-- Update konfigurasi Render (`healthCheckPath` + `STORAGE_FILE_PATH`).
+- Menambahkan menu `Daftar Unit` untuk kelola data unit (`Nomor Unit` dan `EGI`).
+- Menambahkan menu `Laporan Fatigue Tengah Shift` dengan input, riwayat, edit, hapus, dan export `.xlsx`.
+- Menambahkan sinkronisasi otomatis data dari `History Fatigue` berdasarkan NIK (Nama, Jabatan, Departemen, Settingan Unit, Shift).
+- Menambahkan field `Settingan Unit` di `History Fatigue` dan membuatnya searchable (ketik + pilih dari daftar).
+- Menambahkan sinkronisasi Shift otomatis dari data `History Fatigue` saat NIK cocok.
+- Memperbaiki bug agar data riwayat laporan langsung muncul setelah submit.
 
 ## Validation
 
-- ✅ `npm run check`
-- ✅ `npm run smoke`
-- ✅ Protected endpoint tanpa token mengembalikan `401`
+- ✅ Tidak ada error sintaks pada `script.js` setelah perubahan
+- ✅ Submit Laporan Fatigue Tengah Shift menampilkan data riwayat secara langsung
+- ✅ Sinkronisasi NIK dan Shift berjalan saat input NIK cocok
