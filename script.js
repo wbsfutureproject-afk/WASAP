@@ -493,6 +493,7 @@ async function fetchMasterFromBackend() {
 			departments: Array.isArray(data.departments) ? data.departments : [],
 			pics: Array.isArray(data.pics) ? data.pics : [],
 			leaveSettings: Array.isArray(data.leaveSettings) ? data.leaveSettings : [],
+			units: Array.isArray(data.units) ? data.units : [],
 		};
 	} catch (error) {
 		return null;
@@ -523,6 +524,7 @@ function getLocalMasterData() {
 		departments: readLocalArray(DEPARTMENTS_KEY),
 		pics: readLocalArray(PICS_KEY),
 		leaveSettings: readLocalArray(LEAVE_SETTINGS_KEY),
+		units: readLocalArray(UNITS_KEY),
 	};
 }
 
@@ -535,12 +537,14 @@ async function hydrateMasterFromBackend() {
 		(backendMaster.users.length > 0 ||
 			backendMaster.departments.length > 0 ||
 			backendMaster.pics.length > 0 ||
-			backendMaster.leaveSettings.length > 0)
+			backendMaster.leaveSettings.length > 0 ||
+			backendMaster.units.length > 0)
 	) {
 		writeLocalArray(USER_MASTER_KEY, backendMaster.users);
 		writeLocalArray(DEPARTMENTS_KEY, backendMaster.departments);
 		writeLocalArray(PICS_KEY, backendMaster.pics);
 		writeLocalArray(LEAVE_SETTINGS_KEY, backendMaster.leaveSettings);
+		writeLocalArray(UNITS_KEY, backendMaster.units);
 		return;
 	}
 
@@ -548,7 +552,8 @@ async function hydrateMasterFromBackend() {
 		localMaster.users.length > 0 ||
 		localMaster.departments.length > 0 ||
 		localMaster.pics.length > 0 ||
-		localMaster.leaveSettings.length > 0
+		localMaster.leaveSettings.length > 0 ||
+		localMaster.units.length > 0
 	) {
 		await pushMasterToBackend(localMaster);
 	}
@@ -1016,7 +1021,15 @@ function getUnits() {
 }
 
 function setUnits(units) {
-	localStorage.setItem(UNITS_KEY, JSON.stringify(Array.isArray(units) ? units : []));
+	const normalizedUnits = Array.isArray(units) ? units : [];
+	localStorage.setItem(UNITS_KEY, JSON.stringify(normalizedUnits));
+	pushMasterToBackend({
+		users: getManagedUsers(),
+		departments: getDepartments(),
+		pics: getPics(),
+		leaveSettings: getLeaveSettings(),
+		units: normalizedUnits,
+	});
 }
 
 function getLaporanFatigueTengah() {

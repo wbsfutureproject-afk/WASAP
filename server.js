@@ -32,6 +32,7 @@ const EMPTY_STORE = {
 	pics: [],
 	users: [],
 	leaveSettings: [],
+	units: [],
 };
 
 const SYSTEM_USERS = {
@@ -50,6 +51,7 @@ function sanitizeStore(rawStore) {
 		pics: Array.isArray(rawStore?.pics) ? rawStore.pics : [],
 		users: Array.isArray(rawStore?.users) ? rawStore.users : [],
 		leaveSettings: Array.isArray(rawStore?.leaveSettings) ? rawStore.leaveSettings : [],
+		units: Array.isArray(rawStore?.units) ? rawStore.units : [],
 	};
 }
 function issueAuthToken(account) {
@@ -587,6 +589,7 @@ app.get("/api/master", async (req, res) => {
 			departments: store.departments,
 			pics: store.pics,
 			leaveSettings: store.leaveSettings,
+			units: store.units,
 		},
 	});
 });
@@ -594,7 +597,7 @@ app.get("/api/master", async (req, res) => {
 app.put("/api/master", async (req, res) => {
 	const payload = req.body?.data;
 	if (!payload || typeof payload !== "object") {
-		res.status(400).json({ message: "Body harus object { data: { users, departments, pics, leaveSettings } }." });
+		res.status(400).json({ message: "Body harus object { data: { users, departments, pics, leaveSettings, units } }." });
 		return;
 	}
 
@@ -603,6 +606,7 @@ app.put("/api/master", async (req, res) => {
 	store.departments = Array.isArray(payload.departments) ? payload.departments : store.departments;
 	store.pics = Array.isArray(payload.pics) ? payload.pics : store.pics;
 	store.leaveSettings = Array.isArray(payload.leaveSettings) ? payload.leaveSettings : store.leaveSettings;
+	store.units = Array.isArray(payload.units) ? payload.units : store.units;
 
 	await writeStore(store);
 	res.json({
@@ -612,6 +616,7 @@ app.put("/api/master", async (req, res) => {
 			departments: store.departments.length,
 			pics: store.pics.length,
 			leaveSettings: store.leaveSettings.length,
+			units: store.units.length,
 		},
 	});
 });
