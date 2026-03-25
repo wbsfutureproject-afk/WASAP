@@ -531,6 +531,8 @@ function getLocalMasterData() {
 async function hydrateMasterFromBackend() {
 	const backendMaster = await fetchMasterFromBackend();
 	const localMaster = getLocalMasterData();
+	const hasLocalUnits = localMaster.units.length > 0;
+	const hasBackendUnits = Boolean(backendMaster && backendMaster.units.length > 0);
 
 	if (
 		backendMaster &&
@@ -544,7 +546,17 @@ async function hydrateMasterFromBackend() {
 		writeLocalArray(DEPARTMENTS_KEY, backendMaster.departments);
 		writeLocalArray(PICS_KEY, backendMaster.pics);
 		writeLocalArray(LEAVE_SETTINGS_KEY, backendMaster.leaveSettings);
-		writeLocalArray(UNITS_KEY, backendMaster.units);
+		writeLocalArray(UNITS_KEY, hasBackendUnits ? backendMaster.units : localMaster.units);
+
+		if (!hasBackendUnits && hasLocalUnits) {
+			await pushMasterToBackend({
+				users: backendMaster.users,
+				departments: backendMaster.departments,
+				pics: backendMaster.pics,
+				leaveSettings: backendMaster.leaveSettings,
+				units: localMaster.units,
+			});
+		}
 		return;
 	}
 
