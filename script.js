@@ -7,6 +7,8 @@ const LEAVE_SETTINGS_KEY = "she_wbs_leave_settings";
 const KTA_KEY = "she_wbs_kta";
 const TTA_KEY = "she_wbs_tta";
 const FATIGUE_HISTORY_KEY = "she_wbs_fatigue_history";
+const UNITS_KEY = "she_wbs_units";
+const LAPORAN_FATIGUE_TENGAH_KEY = "she_wbs_laporan_fatigue_tengah";
 const BACKEND_HEALTH_ENDPOINT = "/api/health";
 const KTA_SYNC_ENDPOINT = "/api/kta";
 const TTA_SYNC_ENDPOINT = "/api/tta";
@@ -70,7 +72,9 @@ const ROLE_MENUS = {
 		"Daftar User",
 		"Daftar Departemen",
 		"Daftar PIC",
+		"Daftar Unit",
 		"History Fatigue",
+		"Laporan Fatigue Tengah Shift",
 		"Logout",
 	],
 	Admin: ["My Profile", "Achievement", "Tasklist", "Pengaturan Cuti", "Daftar User", "Logout"],
@@ -102,10 +106,11 @@ function getMenuItemsForSession(session) {
 	const logoutIndex = baseItems.indexOf("Logout");
 	if (logoutIndex === -1) {
 		baseItems.push("History Fatigue");
+		baseItems.push("Laporan Fatigue Tengah Shift");
 		return baseItems;
 	}
 
-	baseItems.splice(logoutIndex, 0, "History Fatigue");
+	baseItems.splice(logoutIndex, 0, "History Fatigue", "Laporan Fatigue Tengah Shift");
 	return baseItems;
 }
 
@@ -993,6 +998,44 @@ function getFatigueHistoryRecords() {
 
 function setFatigueHistoryRecords(records) {
 	localStorage.setItem(FATIGUE_HISTORY_KEY, JSON.stringify(Array.isArray(records) ? records : []));
+}
+
+function getUnits() {
+	const raw = localStorage.getItem(UNITS_KEY);
+	if (!raw) {
+		return [];
+	}
+
+	try {
+		const data = JSON.parse(raw);
+		return Array.isArray(data) ? data : [];
+	} catch (error) {
+		localStorage.removeItem(UNITS_KEY);
+		return [];
+	}
+}
+
+function setUnits(units) {
+	localStorage.setItem(UNITS_KEY, JSON.stringify(Array.isArray(units) ? units : []));
+}
+
+function getLaporanFatigueTengah() {
+	const raw = localStorage.getItem(LAPORAN_FATIGUE_TENGAH_KEY);
+	if (!raw) {
+		return [];
+	}
+
+	try {
+		const data = JSON.parse(raw);
+		return Array.isArray(data) ? data : [];
+	} catch (error) {
+		localStorage.removeItem(LAPORAN_FATIGUE_TENGAH_KEY);
+		return [];
+	}
+}
+
+function setLaporanFatigueTengah(records) {
+	localStorage.setItem(LAPORAN_FATIGUE_TENGAH_KEY, JSON.stringify(Array.isArray(records) ? records : []));
 }
 
 function getTodayDate() {
@@ -3345,6 +3388,10 @@ function renderDashboard(session) {
 		const ktaBulkDeleteBtn = document.getElementById("ktaBulkDeleteBtn");
 
 		let editIndex = -1;
+
+		function setShiftReadonly(isReadonly) {
+			lftShift.disabled = Boolean(isReadonly);
+		}
 		let existingTemuanPhotos = [];
 		let existingPerbaikanPhotos = [];
 
@@ -5423,6 +5470,494 @@ function renderDashboard(session) {
 		renderPicList();
 	}
 
+	function renderUnitContent() {
+		if (session.role !== "Super Admin") {
+			renderDefaultContent("Daftar Unit");
+			return;
+		}
+
+		let units = getUnits();
+		let editIndex = -1;
+
+		function escapeHtmlUnit(value) {
+			return String(value || "")
+				.replaceAll("&", "&amp;")
+				.replaceAll("<", "&lt;")
+				.replaceAll(">", "&gt;")
+				.replaceAll('"', "&quot;")
+				.replaceAll("'", "&#39;");
+		}
+
+		contentArea.innerHTML = `
+			<h2>Daftar Unit</h2>
+			<p class="subtitle">Kelola data unit. Nomor unit akan tersedia sebagai pilihan di kolom Settingan Unit pada History Fatigue.</p>
+			<form id="unitForm" class="form-grid" novalidate>
+				<div class="field">
+					<label for="unitNomor">Nomor Unit</label>
+					<input id="unitNomor" name="nomor" type="text" placeholder="Masukkan nomor unit" required />
+				</div>
+				<div class="field">
+					<label for="unitEgi">EGI</label>
+					<input id="unitEgi" name="egi" type="text" placeholder="Masukkan EGI" />
+				</div>
+				<div class="inline-actions field-full">
+					<button type="submit" id="saveUnitBtn" class="btn-primary">Tambah</button>
+					<button type="button" id="cancelUnitEditBtn" class="btn-secondary hidden">Batal</button>
+				</div>
+			</form>
+			<p id="unitError" class="error"></p>
+			<div id="unitList" class="list-wrap"></div>
+		`;
+
+		const unitForm = document.getElementById("unitForm");
+		const unitNomor = document.getElementById("unitNomor");
+		const unitEgi = document.getElementById("unitEgi");
+		const saveUnitBtn = document.getElementById("saveUnitBtn");
+		const cancelUnitEditBtn = document.getElementById("cancelUnitEditBtn");
+		const unitError = document.getElementById("unitError");
+		const unitList = document.getElementById("unitList");
+
+		function resetUnitForm() {
+			unitForm.reset();
+			editIndex = -1;
+			saveUnitBtn.textContent = "Tambah";
+			cancelUnitEditBtn.classList.add("hidden");
+			unitError.textContent = "";
+		}
+
+		function renderUnitList() {
+			if (units.length === 0) {
+				unitList.innerHTML = `<p class="subtitle">Belum ada data unit.</p>`;
+				return;
+			}
+
+			const rows = units
+				.map(
+					(item, index) => `
+						<div class="list-item">
+							<span class="list-text"><strong>${escapeHtmlUnit(item.nomor)}</strong>${item.egi ? " &ndash; " + escapeHtmlUnit(item.egi) : ""}</span>
+							<div class="list-actions">
+								<button type="button" class="btn-small btn-edit" data-index="${index}">Ubah</button>
+								<button type="button" class="btn-small btn-delete" data-index="${index}">Hapus</button>
+							</div>
+						</div>
+					`,
+				)
+				.join("");
+
+			unitList.innerHTML = rows;
+
+			unitList.querySelectorAll(".btn-edit").forEach((button) => {
+				button.addEventListener("click", () => {
+					const index = Number(button.dataset.index);
+					editIndex = index;
+					unitNomor.value = units[index].nomor || "";
+					unitEgi.value = units[index].egi || "";
+					saveUnitBtn.textContent = "Simpan Perubahan";
+					cancelUnitEditBtn.classList.remove("hidden");
+					unitNomor.focus();
+				});
+			});
+
+			unitList.querySelectorAll(".btn-delete").forEach((button) => {
+				button.addEventListener("click", () => {
+					const index = Number(button.dataset.index);
+					const isConfirmed = window.confirm("Yakin ingin menghapus unit ini?");
+					if (!isConfirmed) {
+						return;
+					}
+
+					units.splice(index, 1);
+					setUnits(units);
+					if (editIndex === index) {
+						resetUnitForm();
+					}
+					renderUnitList();
+				});
+			});
+		}
+
+		unitForm.addEventListener("submit", (event) => {
+			event.preventDefault();
+			unitError.textContent = "";
+
+			const nomor = String(unitNomor.value || "").trim();
+			const egi = String(unitEgi.value || "").trim();
+
+			if (!nomor) {
+				unitError.textContent = "Nomor Unit wajib diisi.";
+				return;
+			}
+
+			const isDuplicate = units.some(
+				(u, i) => String(u.nomor || "").trim().toLowerCase() === nomor.toLowerCase() && i !== editIndex,
+			);
+			if (isDuplicate) {
+				unitError.textContent = "Nomor Unit sudah ada dalam daftar.";
+				return;
+			}
+
+			if (editIndex >= 0) {
+				units[editIndex] = { nomor, egi };
+			} else {
+				units.push({ nomor, egi });
+			}
+
+			setUnits(units);
+			resetUnitForm();
+			renderUnitList();
+		});
+
+		cancelUnitEditBtn.addEventListener("click", () => {
+			resetUnitForm();
+		});
+
+		renderUnitList();
+	}
+
+	function renderLaporanFatigueTengahShiftContent() {
+		if (!canAccessHistoryFatigue(session)) {
+			renderDefaultContent("Laporan Fatigue Tengah Shift");
+			return;
+		}
+
+		let records = getLaporanFatigueTengah();
+
+		const fatigueRecords = getFatigueHistoryRecords();
+		const nikOptions = [...new Set(fatigueRecords.map((r) => String(r.nik || "").trim()).filter(Boolean))];
+
+		function escapeHtml(value) {
+			return String(value || "")
+				.replaceAll("&", "&amp;")
+				.replaceAll("<", "&lt;")
+				.replaceAll(">", "&gt;")
+				.replaceAll('"', "&quot;")
+				.replaceAll("'", "&#39;");
+		}
+
+		contentArea.innerHTML = `
+			<h2>Laporan Fatigue Tengah Shift</h2>
+			<p class="subtitle">Isi NIK untuk sinkron otomatis data dari History Fatigue.</p>
+			<form id="lftForm" class="form-grid" novalidate>
+				<div class="field">
+					<label for="lftNama">Nama</label>
+					<input id="lftNama" name="nama" type="text" readonly />
+				</div>
+				<div class="field">
+					<label for="lftNik">NIK</label>
+					<input id="lftNik" name="nik" type="text" list="lftNikOptions" placeholder="Masukkan NIK" autocomplete="off" />
+					<datalist id="lftNikOptions">
+						${nikOptions.map((n) => `<option value="${escapeHtml(n)}"></option>`).join("")}
+					</datalist>
+				</div>
+				<div class="field">
+					<label for="lftJabatan">Jabatan</label>
+					<input id="lftJabatan" name="jabatan" type="text" readonly />
+				</div>
+				<div class="field">
+					<label for="lftDepartemen">Departemen</label>
+					<input id="lftDepartemen" name="departemen" type="text" readonly />
+				</div>
+				<div class="field">
+					<label for="lftSettinganUnit">Settingan Unit</label>
+					<input id="lftSettinganUnit" name="settinganUnit" type="text" readonly />
+				</div>
+				<div class="field">
+					<label for="lftTanggal">Tanggal</label>
+					<input id="lftTanggal" name="tanggal" type="date" required />
+				</div>
+				<div class="field">
+					<label for="lftShift">Shift</label>
+					<select id="lftShift" name="shift" required>
+						<option value="">Pilih Shift</option>
+						<option value="Shift 1">Shift 1</option>
+						<option value="Shift 2">Shift 2</option>
+					</select>
+				</div>
+				<div class="field">
+					<label for="lftJamMulai">Jam Mulai Istirahat</label>
+					<input id="lftJamMulai" name="jamMulaiIstirahat" type="time" required />
+				</div>
+				<div class="field">
+					<label for="lftJamMulaiOperasi">Jam Mulai Operasi Kembali</label>
+					<input id="lftJamMulaiOperasi" name="jamMulaiOperasiKembali" type="time" />
+				</div>
+				<div class="inline-actions field-full">
+					<button type="submit" id="lftSubmitBtn" class="btn-primary">Submit</button>
+					<button type="button" id="lftCancelEditBtn" class="btn-secondary hidden">Batal</button>
+				</div>
+			</form>
+			<p id="lftError" class="error"></p>
+			<p id="lftSuccess" class="subtitle"></p>
+			<div id="lftHistory"></div>
+		`;
+
+		const lftForm = document.getElementById("lftForm");
+		const lftNik = document.getElementById("lftNik");
+		const lftNama = document.getElementById("lftNama");
+		const lftJabatan = document.getElementById("lftJabatan");
+		const lftDepartemen = document.getElementById("lftDepartemen");
+		const lftSettinganUnit = document.getElementById("lftSettinganUnit");
+		const lftTanggal = document.getElementById("lftTanggal");
+		const lftShift = document.getElementById("lftShift");
+		const lftJamMulai = document.getElementById("lftJamMulai");
+		const lftJamMulaiOperasi = document.getElementById("lftJamMulaiOperasi");
+		const lftSubmitBtn = document.getElementById("lftSubmitBtn");
+		const lftCancelEditBtn = document.getElementById("lftCancelEditBtn");
+		const lftError = document.getElementById("lftError");
+		const lftSuccess = document.getElementById("lftSuccess");
+		const lftHistory = document.getElementById("lftHistory");
+
+		let editIndex = -1;
+
+		function setShiftReadonly(isReadonly) {
+			lftShift.disabled = Boolean(isReadonly);
+		}
+
+		function clearSyncedFields() {
+			lftNama.value = "";
+			lftJabatan.value = "";
+			lftDepartemen.value = "";
+			lftSettinganUnit.value = "";
+			lftShift.value = "";
+			setShiftReadonly(false);
+		}
+
+		function resetLftForm() {
+			lftForm.reset();
+			clearSyncedFields();
+			setShiftReadonly(false);
+			editIndex = -1;
+			lftSubmitBtn.textContent = "Submit";
+			lftCancelEditBtn.classList.add("hidden");
+			lftError.textContent = "";
+		}
+
+		function populateEditForm(record) {
+			lftNik.value = record.nik || "";
+			lftNama.value = record.nama || "";
+			lftJabatan.value = record.jabatan || "";
+			lftDepartemen.value = record.departemen || "";
+			lftSettinganUnit.value = record.settinganUnit || "";
+			lftTanggal.value = record.tanggal || "";
+			lftShift.value = record.shift || "";
+			lftJamMulai.value = record.jamMulaiIstirahat || "";
+			lftJamMulaiOperasi.value = record.jamMulaiOperasiKembali || "";
+			setShiftReadonly(false);
+			lftSubmitBtn.textContent = "Simpan Perubahan";
+			lftCancelEditBtn.classList.remove("hidden");
+			lftError.textContent = "";
+			lftSuccess.textContent = "";
+			window.scrollTo({ top: 0, behavior: "smooth" });
+		}
+
+		function syncByNik() {
+			const normalizeNik = (value) => String(value || "").trim().replace(/[\s-]+/g, "");
+			const nik = normalizeNik(lftNik.value);
+			if (!nik) {
+				clearSyncedFields();
+				setShiftReadonly(false);
+				return;
+			}
+
+			const match = fatigueRecords.find((r) => normalizeNik(r.nik) === nik);
+			if (!match) {
+				clearSyncedFields();
+				setShiftReadonly(false);
+				return;
+			}
+
+			lftNama.value = String(match.nama || "").trim();
+			lftJabatan.value = String(match.jabatan || "").trim();
+			lftDepartemen.value = String(match.departemen || "").trim();
+			lftSettinganUnit.value = String(match.settinganUnit || "").trim();
+			lftShift.value = String(match.shift || "").trim();
+			setShiftReadonly(true);
+		}
+
+		function renderLftHistory() {
+			if (records.length === 0) {
+				lftHistory.innerHTML = `<p class="subtitle">Belum ada data laporan yang tersubmit.</p>`;
+				return;
+			}
+
+			const rows = records
+				.map(
+					(item, index) => `
+						<tr>
+							<td>${index + 1}</td>
+							<td>${escapeHtml(item.tanggalSubmit)}</td>
+							<td>${escapeHtml(item.nama)}</td>
+							<td>${escapeHtml(item.nik)}</td>
+							<td>${escapeHtml(item.jabatan)}</td>
+							<td>${escapeHtml(item.departemen)}</td>
+							<td>${escapeHtml(item.settinganUnit)}</td>
+							<td>${escapeHtml(item.tanggal)}</td>
+							<td>${escapeHtml(item.shift)}</td>
+							<td>${escapeHtml(item.jamMulaiIstirahat)}</td>
+							<td>${escapeHtml(item.jamMulaiOperasiKembali)}</td>
+							<td>
+								<div class="table-actions">
+									<button type="button" class="btn-small btn-edit lft-edit-btn" data-index="${index}">Edit</button>
+									<button type="button" class="btn-small btn-delete lft-delete-btn" data-index="${index}">Hapus</button>
+								</div>
+							</td>
+						</tr>
+					`,
+				)
+				.join("");
+
+			lftHistory.innerHTML = `
+				<div class="fatigue-export-panel">
+					<button type="button" class="btn-small btn-edit" id="lftExportExcelBtn">Export Excel (.xlsx)</button>
+					<p id="lftExportInfo" class="fatigue-export-info"></p>
+				</div>
+				<div class="table-wrap">
+					<table class="data-table" id="lftDataTable">
+						<thead>
+							<tr>
+								<th>No</th>
+								<th>Tanggal Submit</th>
+								<th>Nama</th>
+								<th>NIK</th>
+								<th>Jabatan</th>
+								<th>Departemen</th>
+								<th>Settingan Unit</th>
+								<th>Tanggal</th>
+								<th>Shift</th>
+								<th>Jam Mulai Istirahat</th>
+								<th>Jam Mulai Operasi Kembali</th>
+								<th>Aksi</th>
+							</tr>
+						</thead>
+						<tbody>${rows}</tbody>
+					</table>
+				</div>
+			`;
+
+			lftHistory.querySelectorAll(".lft-edit-btn").forEach((button) => {
+				button.addEventListener("click", () => {
+					const index = Number(button.dataset.index);
+					if (!Number.isInteger(index) || index < 0 || index >= records.length) {
+						return;
+					}
+					editIndex = index;
+					populateEditForm(records[index]);
+				});
+			});
+
+			lftHistory.querySelectorAll(".lft-delete-btn").forEach((button) => {
+				button.addEventListener("click", () => {
+					const index = Number(button.dataset.index);
+					if (!Number.isInteger(index) || index < 0 || index >= records.length) {
+						return;
+					}
+					if (!window.confirm("Yakin ingin menghapus data ini?")) {
+						return;
+					}
+					records.splice(index, 1);
+					setLaporanFatigueTengah(records);
+					if (editIndex >= index) {
+						resetLftForm();
+					}
+					renderLftHistory();
+				});
+			});
+
+			const lftExportExcelBtn = document.getElementById("lftExportExcelBtn");
+			const lftExportInfo = document.getElementById("lftExportInfo");
+			if (lftExportExcelBtn) {
+				lftExportExcelBtn.addEventListener("click", () => {
+					if (typeof XLSX === "undefined") {
+						if (lftExportInfo) lftExportInfo.textContent = "Library Excel belum siap. Coba beberapa detik lagi.";
+						return;
+					}
+					if (records.length === 0) {
+						if (lftExportInfo) lftExportInfo.textContent = "Tidak ada data untuk diekspor.";
+						return;
+					}
+					if (lftExportInfo) lftExportInfo.textContent = "";
+					const sheetData = records.map((r, i) => ({
+						"No": i + 1,
+						"Tanggal Submit": r.tanggalSubmit || "",
+						"Nama": r.nama || "",
+						"NIK": r.nik || "",
+						"Jabatan": r.jabatan || "",
+						"Departemen": r.departemen || "",
+						"Settingan Unit": r.settinganUnit || "",
+						"Tanggal": r.tanggal || "",
+						"Shift": r.shift || "",
+						"Jam Mulai Istirahat": r.jamMulaiIstirahat || "",
+						"Jam Mulai Operasi Kembali": r.jamMulaiOperasiKembali || "",
+					}));
+					const worksheet = XLSX.utils.json_to_sheet(sheetData);
+					const workbook = XLSX.utils.book_new();
+					XLSX.utils.book_append_sheet(workbook, worksheet, "Laporan Fatigue Tengah");
+					const dateText = new Date().toISOString().slice(0, 10);
+					XLSX.writeFile(workbook, `laporan_fatigue_tengah_shift_${dateText}.xlsx`);
+				});
+			}
+		}
+
+		lftNik.addEventListener("input", syncByNik);
+		lftNik.addEventListener("change", syncByNik);
+		lftCancelEditBtn.addEventListener("click", resetLftForm);
+		lftForm.addEventListener("submit", (event) => {
+			event.preventDefault();
+			lftError.textContent = "";
+			lftSuccess.textContent = "";
+
+			const nik = String(lftNik.value || "").trim();
+			if (!nik) {
+				lftError.textContent = "NIK wajib diisi.";
+				return;
+			}
+
+			if (!String(lftTanggal.value || "").trim()) {
+				lftError.textContent = "Tanggal wajib diisi.";
+				return;
+			}
+
+			if (!String(lftShift.value || "").trim()) {
+				lftError.textContent = "Shift wajib dipilih.";
+				return;
+			}
+
+			if (!String(lftJamMulai.value || "").trim()) {
+				lftError.textContent = "Jam Mulai Istirahat wajib diisi.";
+				return;
+			}
+
+			const recordData = {
+				nik,
+				nama: String(lftNama.value || "").trim(),
+				jabatan: String(lftJabatan.value || "").trim(),
+				departemen: String(lftDepartemen.value || "").trim(),
+				settinganUnit: String(lftSettinganUnit.value || "").trim(),
+				tanggal: String(lftTanggal.value || "").trim(),
+				shift: String(lftShift.value || "").trim(),
+				jamMulaiIstirahat: String(lftJamMulai.value || "").trim(),
+				jamMulaiOperasiKembali: String(lftJamMulaiOperasi.value || "").trim(),
+			};
+
+			if (editIndex >= 0 && editIndex < records.length) {
+				recordData.tanggalSubmit = records[editIndex].tanggalSubmit;
+				records[editIndex] = recordData;
+				lftSuccess.textContent = "Data laporan berhasil diperbarui.";
+			} else {
+				recordData.tanggalSubmit = new Date().toLocaleString("id-ID");
+				records = [recordData, ...records];
+				lftSuccess.textContent = "Data laporan berhasil disubmit.";
+			}
+
+			setLaporanFatigueTengah(records);
+			resetLftForm();
+			renderLftHistory();
+		});
+
+		renderLftHistory();
+	}
+
 	function renderHistoryFatigueContent() {
 		if (!canAccessHistoryFatigue(session)) {
 			renderDefaultContent("History Fatigue");
@@ -5472,7 +6007,14 @@ function renderDashboard(session) {
 						<label for="fatigueTanggalInput">Tanggal</label>
 						<input id="fatigueTanggalInput" name="tanggal" type="date" required />
 					</div>
-
+					<div class="field">
+						<label for="fatigueSettinganUnit">Settingan Unit</label>
+						<input id="fatigueSettinganUnit" name="settinganUnit" type="text" list="fatigueSettinganUnitOptions" placeholder="Ketik atau pilih unit" autocomplete="off" />
+						<datalist id="fatigueSettinganUnitOptions">
+							<option value=""></option>
+							${getUnits().map((u) => `<option value="${escapeHtml(u.nomor)}">${escapeHtml(u.nomor)}${u.egi ? " - " + escapeHtml(u.egi) : ""}</option>`).join("")}
+						</datalist>
+					</div>
 					<div class="field">
 						<label for="fatigueJamTidur1">Jam Tidur 1</label>
 						<input id="fatigueJamTidur1" name="jamTidur1" type="time" />
@@ -5564,6 +6106,7 @@ function renderDashboard(session) {
 				fatigueDepartemen: document.getElementById("fatigueDepartemen"),
 				fatigueShift: document.getElementById("fatigueShift"),
 				fatigueTanggalInput: document.getElementById("fatigueTanggalInput"),
+				fatigueSettinganUnit: document.getElementById("fatigueSettinganUnit"),
 				fatigueMinumObat: document.getElementById("fatigueMinumObat"),
 				fatigueMasalah: document.getElementById("fatigueMasalah"),
 				fatigueMinumObatKeteranganField: document.getElementById("fatigueMinumObatKeteranganField"),
@@ -5598,6 +6141,7 @@ function renderDashboard(session) {
 			fatigueDepartemen,
 			fatigueShift,
 			fatigueTanggalInput,
+			fatigueSettinganUnit,
 			fatigueMinumObat,
 			fatigueMasalah,
 			fatigueMinumObatKeteranganField,
@@ -5779,6 +6323,7 @@ function renderDashboard(session) {
 				"Jabatan": record.jabatan || "",
 				"Departemen": record.departemen || "",
 				"Shift": record.shift || "",
+				"Settingan Unit": record.settinganUnit || "",
 				"Tanggal": formatFatigueDateDisplay(record.tanggal),
 				"Jam Tidur 1": record.jamTidur1 || "",
 				"Jam Bangun 1": record.jamBangun1 || "",
@@ -5806,6 +6351,7 @@ function renderDashboard(session) {
 				["Jabatan", escapeHtml(record.jabatan)],
 				["Departemen", escapeHtml(record.departemen)],
 				["Shift", escapeHtml(record.shift)],
+				["Settingan Unit", escapeHtml(record.settinganUnit)],
 				["Tanggal", escapeHtml(formatFatigueDateDisplay(record.tanggal))],
 				["Jam Tidur 1", escapeHtml(record.jamTidur1)],
 				["Jam Bangun 1", escapeHtml(record.jamBangun1)],
@@ -5886,6 +6432,7 @@ function renderDashboard(session) {
 							<td>${escapeHtml(record.jabatan)}</td>
 							<td>${escapeHtml(record.departemen)}</td>
 							<td>${escapeHtml(record.shift)}</td>
+							<td>${escapeHtml(record.settinganUnit)}</td>
 							<td>${escapeHtml(formatFatigueDateDisplay(record.tanggal))}</td>
 							<td>${escapeHtml(record.minumObat)}</td>
 							<td>${escapeHtml(record.adaMasalah)}</td>
@@ -5941,6 +6488,7 @@ function renderDashboard(session) {
 								<th>Jabatan</th>
 								<th>Departemen</th>
 								<th>Shift</th>
+								<th>Settingan Unit</th>
 								<th>Tanggal</th>
 								<th>Minum Obat</th>
 								<th>Ada Masalah</th>
@@ -6084,6 +6632,7 @@ function renderDashboard(session) {
 				departemen: String(fatigueDepartemen.value || "").trim(),
 				shift: String(fatigueShift.value || "").trim(),
 				tanggal: getFatigueSelectedDate(),
+				settinganUnit: String(fatigueSettinganUnit.value || "").trim(),
 				jamTidur1: String(fatigueJamTidur1.value || "").trim(),
 				jamBangun1: String(fatigueJamBangun1.value || "").trim(),
 				jamTidur2: String(fatigueJamTidur2.value || "").trim(),
@@ -6555,8 +7104,18 @@ function renderDashboard(session) {
 			return;
 		}
 
+		if (menuName === "Daftar Unit") {
+			renderUnitContent();
+			return;
+		}
+
 		if (menuName === "History Fatigue") {
 			renderHistoryFatigueContent();
+			return;
+		}
+
+		if (menuName === "Laporan Fatigue Tengah Shift") {
+			renderLaporanFatigueTengahShiftContent();
 			return;
 		}
 

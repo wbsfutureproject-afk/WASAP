@@ -1503,13 +1503,15 @@ input[type="file"] {
 
 @media (max-width: 768px) {
 	#ktaHistory,
-	#ttaHistory {
+	#ttaHistory,
+	#fatigueHistory {
 		overflow-x: auto;
 		-webkit-overflow-scrolling: touch;
 	}
 
 	#ktaHistory .data-table,
-	#ttaHistory .data-table {
+	#ttaHistory .data-table,
+	#fatigueHistory .data-table {
 		width: 100%;
 		min-width: 100%;
 		table-layout: fixed;
@@ -1519,7 +1521,9 @@ input[type="file"] {
 	#ktaHistory .data-table th,
 	#ktaHistory .data-table td,
 	#ttaHistory .data-table th,
-	#ttaHistory .data-table td {
+	#ttaHistory .data-table td,
+	#fatigueHistory .data-table th,
+	#fatigueHistory .data-table td {
 		padding: 7px 6px;
 		white-space: normal;
 		word-break: break-word;
@@ -1530,7 +1534,10 @@ input[type="file"] {
 	#ktaHistory .data-table tfoot td,
 	#ttaHistory .data-table thead th,
 	#ttaHistory .data-table tfoot th,
-	#ttaHistory .data-table tfoot td {
+	#ttaHistory .data-table tfoot td,
+	#fatigueHistory .data-table thead th,
+	#fatigueHistory .data-table tfoot th,
+	#fatigueHistory .data-table tfoot td {
 		position: static;
 	}
 
