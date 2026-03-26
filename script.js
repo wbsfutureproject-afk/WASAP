@@ -456,14 +456,50 @@ async function syncArrayData(endpoint, localStorageKey) {
 	const backendRecords = await fetchRecordsFromBackend(endpoint);
 	const localRecords = readLocalArray(localStorageKey);
 
-	if (Array.isArray(backendRecords) && backendRecords.length > 0) {
+	// Backend tidak tersedia — pertahankan data lokal, coba push jika ada
+	if (!Array.isArray(backendRecords)) {
+		if (localRecords.length > 0) {
+			await pushRecordsToBackend(endpoint, localRecords);
+		}
+		return;
+	}
+
+	// Backend kosong dan lokal kosong — tidak ada yang dilakukan
+	if (backendRecords.length === 0 && localRecords.length === 0) {
+		return;
+	}
+
+	// Backend kosong tapi lokal punya data — push lokal ke backend
+	if (backendRecords.length === 0) {
+		writeLocalArray(localStorageKey, localRecords);
+		await pushRecordsToBackend(endpoint, localRecords);
+		return;
+	}
+
+	// Merge: backend sebagai sumber utama, tambah record lokal yang tidak ada di backend
+	const backendMap = new Map();
+	backendRecords.forEach((item) => {
+		const key = String(item?.noId || "").trim();
+		if (key) {
+			backendMap.set(key, item);
+		}
+	});
+
+	const localOnlyRecords = localRecords.filter((item) => {
+		const key = String(item?.noId || "").trim();
+		return key && !backendMap.has(key);
+	});
+
+	if (localOnlyRecords.length === 0) {
+		// Tidak ada record lokal eksklusif — simpan backend ke lokal
 		writeLocalArray(localStorageKey, backendRecords);
 		return;
 	}
 
-	if (localRecords.length > 0) {
-		await pushRecordsToBackend(endpoint, localRecords);
-	}
+	// Ada record lokal yang belum ada di backend — merge dan sync
+	const merged = [...backendRecords, ...localOnlyRecords];
+	writeLocalArray(localStorageKey, merged);
+	await pushRecordsToBackend(endpoint, merged);
 }
 
 async function fetchMasterFromBackend() {
