@@ -495,6 +495,38 @@ function getLatestBackupRecords(localStorageKey) {
 	return Array.isArray(latest.records) ? latest.records : [];
 }
 
+function isQuotaExceededError(error) {
+	if (!error) {
+		return false;
+	}
+
+	if (error.name === "QuotaExceededError" || error.name === "NS_ERROR_DOM_QUOTA_REACHED") {
+		return true;
+	}
+
+	const message = String(error.message || "").toLowerCase();
+	return message.includes("quota") || message.includes("exceeded");
+}
+
+function compactRecordForBackup(record) {
+	const nextRecord = { ...(record || {}) };
+
+	const compactPhotos = (photos) => {
+		if (!Array.isArray(photos)) {
+			return [];
+		}
+
+		return photos.map((photo) => ({
+			name: String(photo?.name || "foto"),
+		}));
+	};
+
+	nextRecord.fotoTemuan = compactPhotos(nextRecord.fotoTemuan);
+	nextRecord.fotoPerbaikan = compactPhotos(nextRecord.fotoPerbaikan);
+
+	return nextRecord;
+}
+
 function appendBackupSnapshot(localStorageKey, records) {
 	const backupKey = getBackupStorageKey(localStorageKey);
 	if (!backupKey) {
@@ -526,7 +558,45 @@ function appendBackupSnapshot(localStorageKey, records) {
 	}
 
 	const limitedBackups = backups.slice(-14);
-	localStorage.setItem(backupKey, JSON.stringify(limitedBackups));
+
+	try {
+		localStorage.setItem(backupKey, JSON.stringify(limitedBackups));
+		return;
+	} catch (error) {
+		if (!isQuotaExceededError(error)) {
+			console.warn("[Backup] Gagal menyimpan snapshot:", error);
+			return;
+		}
+	}
+
+	try {
+		const compactBackups = limitedBackups
+			.slice(-7)
+			.map((entry) => ({
+				...entry,
+				records: Array.isArray(entry.records) ? entry.records.map((item) => compactRecordForBackup(item)) : [],
+			}));
+		localStorage.setItem(backupKey, JSON.stringify(compactBackups));
+		console.warn("[Backup] Quota penuh, backup disimpan dalam mode compact.");
+		return;
+	} catch (error) {
+		if (!isQuotaExceededError(error)) {
+			console.warn("[Backup] Gagal menyimpan backup compact:", error);
+			return;
+		}
+	}
+
+	try {
+		const latestCompact = {
+			date: today,
+			timestamp: new Date().toISOString(),
+			records: normalizedRecords.map((item) => compactRecordForBackup(item)),
+		};
+		localStorage.setItem(backupKey, JSON.stringify([latestCompact]));
+		console.warn("[Backup] Quota sangat terbatas, hanya snapshot terbaru yang disimpan.");
+	} catch (error) {
+		console.warn("[Backup] Backup dilewati karena quota storage penuh:", error);
+	}
 }
 
 function mergeRecordsByNoId(primaryRecords, secondaryRecords) {
