@@ -3895,9 +3895,13 @@ function renderDashboard(session) {
 			ktaSuccess.textContent = "";
 
 			await runWithButtonLoading(ktaSubmitBtn, "Menyimpan...", async () => {
-			const formData = new FormData(ktaForm);
-			const fotoTemuanFiles = document.getElementById("ktaFotoTemuan").files || [];
-			const fotoPerbaikanFiles = document.getElementById("ktaFotoPerbaikan").files || [];
+			try {
+				console.log("[KTA Submit] Form submit dimulai");
+				const formData = new FormData(ktaForm);
+				const fotoTemuanFiles = document.getElementById("ktaFotoTemuan").files || [];
+				const fotoPerbaikanFiles = document.getElementById("ktaFotoPerbaikan").files || [];
+				console.log("[KTA Submit] Foto temuan:", fotoTemuanFiles.length, "file(s)");
+				console.log("[KTA Submit] Foto perbaikan:", fotoPerbaikanFiles.length, "file(s)");
 
 			await runWithFormControlsDisabled(ktaForm, async () => {
 
@@ -3922,6 +3926,7 @@ function renderDashboard(session) {
 				tanggalPerbaikan: String(formData.get("tanggalPerbaikan") || "").trim(),
 				status: String(formData.get("status") || "").trim(),
 			};
+			console.log("[KTA Submit] Payload base:", payload);
 
 			const requiredBase = [
 				"noId",
@@ -3942,37 +3947,44 @@ function renderDashboard(session) {
 
 			if (requiredBase.some((field) => !payload[field])) {
 				ktaError.textContent = "Lengkapi seluruh field wajib pada form KTA.";
+				console.error("[KTA Submit] Validasi gagal: field wajib tidak lengkap");
 				return;
 			}
 
 			if (!kategoriTemuanOptions.includes(payload.kategoriTemuan)) {
 				ktaError.textContent = "Kategori Temuan harus dipilih dari daftar yang tersedia.";
+				console.error("[KTA Submit] Kategori temuan tidak valid:", payload.kategoriTemuan);
 				return;
 			}
 
 			if (!["Critical", "High", "Medium", "Low"].includes(payload.riskLevel)) {
 				ktaError.textContent = "Risk Level tidak valid.";
+				console.error("[KTA Submit] Risk level tidak valid:", payload.riskLevel);
 				return;
 			}
 
 			if (!getPics().includes(payload.namaPic)) {
 				ktaError.textContent = "Nama PIC harus dipilih dari Daftar PIC.";
+				console.error("[KTA Submit] PIC tidak valid:", payload.namaPic);
 				return;
 			}
 
 			if (!DEFAULT_LOKASI_TEMUAN.includes(payload.lokasiTemuan)) {
 				ktaError.textContent = "Lokasi Temuan harus dipilih dari daftar yang tersedia.";
+				console.error("[KTA Submit] Lokasi tidak valid:", payload.lokasiTemuan);
 				return;
 			}
 
 			if (payload.perbaikanLangsung === "Ya") {
 				if (!payload.tindakanPerbaikan || !payload.tanggalPerbaikan || !payload.status) {
 					ktaError.textContent = "Lengkapi field perbaikan langsung (Tindakan, Tanggal, dan Status).";
+					console.error("[KTA Submit] Perbaikan langsung field tidak lengkap");
 					return;
 				}
 
 				if (!["Open", "Progress", "Close"].includes(payload.status)) {
 					ktaError.textContent = "Status perbaikan tidak valid.";
+					console.error("[KTA Submit] Status tidak valid:", payload.status);
 					return;
 				}
 			}
@@ -3984,51 +3996,71 @@ function renderDashboard(session) {
 				payload.status = "Open";
 			}
 
+			console.log("[KTA Submit] Mulai kompresi foto temuan...");
 			payload.fotoTemuan = await readFilesAsDataUrls(fotoTemuanFiles);
+			console.log("[KTA Submit] Foto temuan setelah kompresi:", payload.fotoTemuan.length);
 			if (editIndex >= 0 && payload.fotoTemuan.length === 0) {
 				payload.fotoTemuan = existingTemuanPhotos;
+				console.log("[KTA Submit] Menggunakan existing foto temuan:", payload.fotoTemuan.length);
 			}
 
 			if (payload.perbaikanLangsung === "Ya") {
+				console.log("[KTA Submit] Mulai kompresi foto perbaikan...");
 				payload.fotoPerbaikan = await readFilesAsDataUrls(fotoPerbaikanFiles);
+				console.log("[KTA Submit] Foto perbaikan setelah kompresi:", payload.fotoPerbaikan.length);
 				if (editIndex >= 0 && payload.fotoPerbaikan.length === 0) {
 					payload.fotoPerbaikan = existingPerbaikanPhotos;
+					console.log("[KTA Submit] Menggunakan existing foto perbaikan:", payload.fotoPerbaikan.length);
 				}
 			}
 
 			const records = getKtaRecords();
+			console.log("[KTA Submit] Total records sebelumnya:", records.length);
 
 			if (editIndex >= 0 && isSuperAdmin) {
+				console.log("[KTA Submit] Mode EDIT, editIndex:", editIndex);
 				const currentRecord = records[editIndex];
 				if (!currentRecord) {
 					ktaError.textContent = "Data KTA yang akan diperbarui tidak ditemukan.";
+					console.error("[KTA Submit] Edit mode: record tidak ditemukan");
 					return;
 				}
 
+				console.log("[KTA Submit] Panggil updateKtaRecord untuk noId:", currentRecord.noId);
 				const updateResult = await updateKtaRecord(currentRecord.noId, payload);
+				console.log("[KTA Submit] Update result:", updateResult.ok, updateResult.status);
 				if (!updateResult.ok) {
 					ktaError.textContent = getApiErrorMessage(updateResult, "Gagal memperbarui data KTA di backend.");
+					console.error("[KTA Submit] Update gagal:", updateResult);
 					return;
 				}
 
 				records[editIndex] = payload;
 				writeLocalArray(KTA_KEY, records);
+				console.log("[KTA Submit] Update berhasil disimpan ke lokal");
 			} else {
+				console.log("[KTA Submit] Mode CREATE");
 				let createPayload = { ...payload };
+				console.log("[KTA Submit] Panggil createKtaRecord untuk noId:", createPayload.noId);
 				let createResult = await createKtaRecord(createPayload);
+				console.log("[KTA Submit] Create result:", createResult.ok, createResult.status, createResult.payload);
 
 				if (!createResult.ok && createResult.status === 409) {
+					console.warn("[KTA Submit] 409 Conflict detected, sync dan retry...");
 					await syncArrayData(KTA_SYNC_ENDPOINT, KTA_KEY);
 					createPayload = {
 						...createPayload,
 						noId: createKtaId(),
 					};
+					console.log("[KTA Submit] NoId baru setelah 409:", createPayload.noId);
 					document.getElementById("ktaNoId").value = createPayload.noId;
 					createResult = await createKtaRecord(createPayload);
+					console.log("[KTA Submit] Retry result:", createResult.ok, createResult.status);
 				}
 
 				if (!createResult.ok) {
 					ktaError.textContent = getApiErrorMessage(createResult, "Gagal menyimpan data KTA ke backend.");
+					console.error("[KTA Submit] Create gagal:", createResult);
 					return;
 				}
 
@@ -4036,15 +4068,21 @@ function renderDashboard(session) {
 				latestRecords.push(createPayload);
 				writeLocalArray(KTA_KEY, latestRecords);
 				payload.noId = createPayload.noId;
+				console.log("[KTA Submit] Create berhasil, total records sekarang:", latestRecords.length);
 			}
 
 			ktaSuccess.textContent =
 				editIndex >= 0 && isSuperAdmin
 					? `Data KTA berhasil diperbarui dengan No ID ${payload.noId}.`
 					: `Data KTA berhasil disimpan dengan No ID ${payload.noId}.`;
+			console.log("[KTA Submit] SUCCESS:", ktaSuccess.textContent);
 			resetKtaForm();
 			renderKtaHistory();
 			});
+			} catch (error) {
+				console.error("[KTA Submit] EXCEPTION:", error);
+				ktaError.textContent = `Error: ${error.message}`;
+			}
 			});
 		});
 
