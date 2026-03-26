@@ -1553,31 +1553,52 @@ function renderLogin() {
 
 		// Handler untuk form submission
 		const handleLoginSubmit = async (event) => {
-			if (event) {
-				event.preventDefault();
+			try {
+				if (event) {
+					event.preventDefault();
+				}
+				errorText.textContent = "";
+				console.log("[Login] Submit dimulai");
+
+				await runWithButtonLoading(loginSubmitButton, "Login...", async () => {
+					try {
+						const loginIdentifier = usernameInput.value.trim();
+						const password = passwordInput.value.trim();
+						console.log("[Login] Identifier:", loginIdentifier);
+
+						if (!loginIdentifier || !password) {
+							errorText.textContent = "Username/email dan password harus diisi.";
+							console.warn("[Login] Field kosong");
+							return;
+						}
+
+						console.log("[Login] Resolve account...");
+						const account = await resolveLoginAccount(loginIdentifier, password);
+
+						if (!account) {
+							errorText.textContent = "Username/email atau password tidak valid.";
+							console.error("[Login] Account tidak ditemukan");
+							return;
+						}
+
+						console.log("[Login] Account found:", account.username, account.role);
+						setSession(account);
+						console.log("[Login] Session set, mulai hydrate records...");
+						
+						await hydrateRecordsFromBackend();
+						console.log("[Login] Hydrate complete, render app...");
+						
+						renderApp();
+						console.log("[Login] SUCCESS");
+					} catch (innerError) {
+						console.error("[Login] Error dalam login process:", innerError);
+						errorText.textContent = `Login error: ${innerError.message}`;
+					}
+				});
+			} catch (error) {
+				console.error("[Login] Outer error:", error);
+				errorText.textContent = `Error: ${error.message}`;
 			}
-			errorText.textContent = "";
-
-			await runWithButtonLoading(loginSubmitButton, "Login...", async () => {
-				const loginIdentifier = usernameInput.value.trim();
-				const password = passwordInput.value.trim();
-
-				if (!loginIdentifier || !password) {
-					errorText.textContent = "Username/email dan password harus diisi.";
-					return;
-				}
-
-				const account = await resolveLoginAccount(loginIdentifier, password);
-
-				if (!account) {
-					errorText.textContent = "Username/email atau password tidak valid.";
-					return;
-				}
-
-				setSession(account);
-				await hydrateRecordsFromBackend();
-				renderApp();
-			});
 		};
 
 		// Attach form submit event
@@ -1586,19 +1607,21 @@ function renderLogin() {
 		// Fallback: juga attach ke button click untuk memastikan login bekerja
 		loginSubmitButton.addEventListener("click", async (event) => {
 			event.preventDefault();
-			await handleLoginSubmit();
+			await handleLoginSubmit(event);
 		});
 
 		// Allow Enter key to trigger login
-		usernameInput.addEventListener("keypress", (event) => {
+		usernameInput.addEventListener("keypress", async (event) => {
 			if (event.key === "Enter") {
-				handleLoginSubmit();
+				event.preventDefault();
+				await handleLoginSubmit(event);
 			}
 		});
 
-		passwordInput.addEventListener("keypress", (event) => {
+		passwordInput.addEventListener("keypress", async (event) => {
 			if (event.key === "Enter") {
-				handleLoginSubmit();
+				event.preventDefault();
+				await handleLoginSubmit(event);
 			}
 		});
 	} catch (error) {
