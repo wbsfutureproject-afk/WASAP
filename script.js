@@ -529,6 +529,28 @@ function appendBackupSnapshot(localStorageKey, records) {
 	localStorage.setItem(backupKey, JSON.stringify(limitedBackups));
 }
 
+function mergeRecordsByNoId(primaryRecords, secondaryRecords) {
+	const primary = Array.isArray(primaryRecords) ? primaryRecords : [];
+	const secondary = Array.isArray(secondaryRecords) ? secondaryRecords : [];
+	const byNoId = new Map();
+
+	primary.forEach((item) => {
+		const key = String(item?.noId || "").trim();
+		if (key) {
+			byNoId.set(key, item);
+		}
+	});
+
+	secondary.forEach((item) => {
+		const key = String(item?.noId || "").trim();
+		if (key && !byNoId.has(key)) {
+			byNoId.set(key, item);
+		}
+	});
+
+	return Array.from(byNoId.values());
+}
+
 function writeLocalArray(localStorageKey, records) {
 	const normalizedRecords = Array.isArray(records) ? records : [];
 	localStorage.setItem(localStorageKey, JSON.stringify(normalizedRecords));
@@ -585,7 +607,7 @@ async function syncArrayData(endpoint, localStorageKey) {
 	}
 
 	// Ada record lokal yang belum ada di backend — merge dan sync
-	const merged = [...backendRecords, ...localOnlyRecords];
+	const merged = mergeRecordsByNoId(backendRecords, localOnlyRecords);
 	writeLocalArray(localStorageKey, merged);
 	await pushRecordsToBackend(endpoint, merged);
 }
@@ -3572,6 +3594,14 @@ function renderDashboard(session) {
 					<div class="inline-actions field-full">
 						<button type="button" id="ktaBulkDeleteBtn" class="btn-delete">Hapus Sesuai No ID</button>
 					</div>
+					<div class="field field-full">
+						<label>Pemulihan Backup</label>
+						<p class="subtitle">Pulihkan snapshot backup lokal terbaru untuk KTA/TTA lalu sinkron ke backend.</p>
+					</div>
+					<div class="inline-actions field-full">
+						<button type="button" id="restoreKtaBackupBtn" class="btn-secondary">Restore Backup KTA</button>
+						<button type="button" id="restoreTtaBackupBtn" class="btn-secondary">Restore Backup TTA</button>
+					</div>
 				</div>`
 				: ""}
 			<div id="ktaHistory" class="table-wrap"></div>
@@ -3594,6 +3624,8 @@ function renderDashboard(session) {
 		const ktaCancelEditBtn = document.getElementById("ktaCancelEditBtn");
 		const ktaBulkDeleteIds = document.getElementById("ktaBulkDeleteIds");
 		const ktaBulkDeleteBtn = document.getElementById("ktaBulkDeleteBtn");
+		const restoreKtaBackupBtn = document.getElementById("restoreKtaBackupBtn");
+		const restoreTtaBackupBtn = document.getElementById("restoreTtaBackupBtn");
 
 		let editIndex = -1;
 
@@ -4081,6 +4113,47 @@ function renderDashboard(session) {
 					ktaSuccess.textContent = `Hapus massal selesai. Berhasil: ${successfulDeletes.size}, Gagal: ${failedDeleteCount}, Tidak ditemukan: ${notFoundCount}.`;
 					ktaBulkDeleteIds.value = "";
 					renderKtaHistory();
+				});
+			});
+		}
+
+		if (restoreKtaBackupBtn) {
+			restoreKtaBackupBtn.addEventListener("click", async () => {
+				ktaError.textContent = "";
+				ktaSuccess.textContent = "";
+
+				await runWithButtonLoading(restoreKtaBackupBtn, "Memulihkan...", async () => {
+					const backupRecords = getLatestBackupRecords(KTA_KEY);
+					if (backupRecords.length === 0) {
+						ktaError.textContent = "Backup KTA lokal belum tersedia.";
+						return;
+					}
+
+					const mergedRecords = mergeRecordsByNoId(getKtaRecords(), backupRecords);
+					writeLocalArray(KTA_KEY, mergedRecords);
+					await pushRecordsToBackend(KTA_SYNC_ENDPOINT, mergedRecords);
+					ktaSuccess.textContent = `Backup KTA berhasil dipulihkan (${mergedRecords.length} record).`;
+					renderKtaHistory();
+				});
+			});
+		}
+
+		if (restoreTtaBackupBtn) {
+			restoreTtaBackupBtn.addEventListener("click", async () => {
+				ktaError.textContent = "";
+				ktaSuccess.textContent = "";
+
+				await runWithButtonLoading(restoreTtaBackupBtn, "Memulihkan...", async () => {
+					const backupRecords = getLatestBackupRecords(TTA_KEY);
+					if (backupRecords.length === 0) {
+						ktaError.textContent = "Backup TTA lokal belum tersedia.";
+						return;
+					}
+
+					const mergedRecords = mergeRecordsByNoId(getTtaRecords(), backupRecords);
+					writeLocalArray(TTA_KEY, mergedRecords);
+					await pushRecordsToBackend(TTA_SYNC_ENDPOINT, mergedRecords);
+					ktaSuccess.textContent = `Backup TTA berhasil dipulihkan (${mergedRecords.length} record).`;
 				});
 			});
 		}
