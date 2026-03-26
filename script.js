@@ -4340,9 +4340,11 @@ function renderDashboard(session) {
 					const index = Number(button.dataset.index);
 					const selected = getTtaRecords()[index];
 					if (!selected) {
+						console.warn("[TTA Edit] Record tidak ditemukan di index", index);
 						return;
 					}
 
+					console.log("[TTA Edit] Setting editIndex to", index, "for noId:", selected.noId);
 					editIndex = index;
 					existingTemuanPhotos = Array.isArray(selected.fotoTemuan) ? selected.fotoTemuan : [];
 					existingPerbaikanPhotos = Array.isArray(selected.fotoPerbaikan) ? selected.fotoPerbaikan : [];
@@ -4376,6 +4378,7 @@ function renderDashboard(session) {
 					ttaSubmitBtn.textContent = "Simpan Perubahan";
 					ttaCancelEditBtn.classList.remove("hidden");
 					ttaSuccess.textContent = "Mode edit TTA aktif. Upload foto baru jika ingin mengganti foto lama.";
+					console.log("[TTA Edit] Form filled, editIndex now:", editIndex);
 				});
 			});
 
@@ -4415,6 +4418,7 @@ function renderDashboard(session) {
 		}
 
 		function resetTtaForm() {
+			console.log("[TTA Reset] Resetting form, editIndex before:", editIndex);
 			ttaForm.reset();
 			editIndex = -1;
 			existingTemuanPhotos = [];
@@ -4429,6 +4433,7 @@ function renderDashboard(session) {
 			ttaCancelEditBtn.classList.add("hidden");
 			updatePelakuInfo();
 			toggleDirectFixFields();
+			console.log("[TTA Reset] Form reset complete, editIndex now:", editIndex);
 		}
 
 		function toggleDirectFixFields() {
@@ -4580,33 +4585,43 @@ function renderDashboard(session) {
 			}
 
 			const records = getTtaRecords();
-			if (editIndex >= 0) {
-				const currentRecord = records[editIndex];
-				if (!currentRecord) {
-					ttaError.textContent = "Data TTA yang akan diperbarui tidak ditemukan.";
-					return;
-				}
+			console.log("[TTA Form Submit] editIndex:", editIndex, "buttonText:", ttaSubmitBtn.textContent, "payloadNoId:", payload.noId);
 
+			// Determine if this is edit or create mode
+			let isEditMode = editIndex >= 0;
+			const currentRecord = isEditMode ? records[editIndex] : null;
+
+			if (isEditMode && !currentRecord) {
+				console.warn("[TTA Form Submit] Edit mode set tapi record tidak ditemukan di index", editIndex, "- fallback ke create mode");
+				isEditMode = false;
+			}
+
+			if (isEditMode) {
+				console.log("[TTA Form Submit] Executing UPDATE for noId:", currentRecord.noId);
 				const updateResult = await updateTtaRecord(currentRecord.noId, payload);
 				if (!updateResult.ok) {
 					ttaError.textContent = getApiErrorMessage(updateResult, "Gagal memperbarui data TTA di backend.");
+					console.error("[TTA Form Submit] Update failed:", updateResult);
 					return;
 				}
 
 				records[editIndex] = payload;
 				writeLocalArray(TTA_KEY, records);
+				ttaSuccess.textContent = `Data TTA berhasil diperbarui dengan No ID ${payload.noId}.`;
 			} else {
+				console.log("[TTA Form Submit] Executing CREATE for noId:", payload.noId);
 				const createResult = await createTtaRecord(payload);
 				if (!createResult.ok) {
 					ttaError.textContent = getApiErrorMessage(createResult, "Gagal menyimpan data TTA ke backend.");
+					console.error("[TTA Form Submit] Create failed:", createResult);
 					return;
 				}
 
 				records.push(payload);
 				writeLocalArray(TTA_KEY, records);
+				ttaSuccess.textContent = `Data TTA berhasil disimpan dengan No ID ${payload.noId}.`;
 			}
 
-			ttaSuccess.textContent = editIndex >= 0 ? `Data TTA berhasil diperbarui dengan No ID ${payload.noId}.` : `Data TTA berhasil disimpan dengan No ID ${payload.noId}.`;
 			resetTtaForm();
 			renderTtaHistory();
 			});
@@ -4614,6 +4629,7 @@ function renderDashboard(session) {
 		});
 
 		ttaCancelEditBtn.addEventListener("click", () => {
+			console.log("[TTA Cancel] Cancelling edit mode, current editIndex:", editIndex);
 			resetTtaForm();
 			ttaSuccess.textContent = "Mode edit TTA dibatalkan.";
 		});
