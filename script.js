@@ -1349,56 +1349,115 @@ function getReporterProfile(session) {
 }
 
 function renderLogin() {
-	app.innerHTML = `
-		<section class="card">
-			<h1>SHE WBS</h1>
-			<p class="subtitle">Silakan login untuk mengakses aplikasi.</p>
-			<form id="loginForm" novalidate>
-				<div class="field">
-					<label for="username">Username atau Email</label>
-					<input id="username" name="username" type="text" autocomplete="username" placeholder="Masukkan username atau email" required />
-				</div>
-				<div class="field">
-					<label for="password">Password</label>
-					<input id="password" name="password" type="password" autocomplete="current-password" required />
-				</div>
-				<p id="errorText" class="error"></p>
-				<button type="submit" class="btn-primary">Login</button>
-			</form>
-		</section>
-	`;
+	try {
+		if (!app) {
+			console.error("Login render error: app element not found");
+			return;
+		}
 
-	const loginForm = document.getElementById("loginForm");
-	const usernameInput = document.getElementById("username");
-	const passwordInput = document.getElementById("password");
-	const errorText = document.getElementById("errorText");
-	const loginSubmitButton = loginForm.querySelector('button[type="submit"]');
+		app.innerHTML = `
+			<section class="card">
+				<h1>SHE WBS</h1>
+				<p class="subtitle">Silakan login untuk mengakses aplikasi.</p>
+				<form id="loginForm" novalidate>
+					<div class="field">
+						<label for="username">Username atau Email</label>
+						<input id="username" name="username" type="text" autocomplete="username" placeholder="Masukkan username atau email" required />
+					</div>
+					<div class="field">
+						<label for="password">Password</label>
+						<input id="password" name="password" type="password" autocomplete="current-password" required />
+					</div>
+					<p id="errorText" class="error"></p>
+					<button type="submit" class="btn-primary">Login</button>
+				</form>
+			</section>
+		`;
 
-	if (pendingSessionNotice) {
-		errorText.textContent = pendingSessionNotice;
-		pendingSessionNotice = "";
-	}
+		// Verify elements exist before using them
+		const loginForm = document.getElementById("loginForm");
+		const usernameInput = document.getElementById("username");
+		const passwordInput = document.getElementById("password");
+		const errorText = document.getElementById("errorText");
 
-	loginForm.addEventListener("submit", async (event) => {
-		event.preventDefault();
-		errorText.textContent = "";
+		if (!loginForm) {
+			console.error("Login render error: loginForm not found");
+			return;
+		}
 
-		await runWithButtonLoading(loginSubmitButton, "Login...", async () => {
-			const loginIdentifier = usernameInput.value.trim();
-			const password = passwordInput.value.trim();
+		if (!usernameInput || !passwordInput || !errorText) {
+			console.error("Login render error: form elements not found", {
+				usernameInput: !!usernameInput,
+				passwordInput: !!passwordInput,
+				errorText: !!errorText,
+			});
+			return;
+		}
 
-			const account = await resolveLoginAccount(loginIdentifier, password);
+		const loginSubmitButton = loginForm.querySelector('button[type="submit"]');
+		if (!loginSubmitButton) {
+			console.error("Login render error: submit button not found");
+			return;
+		}
 
-			if (!account) {
-				errorText.textContent = "Username/email atau password tidak valid.";
-				return;
+		if (pendingSessionNotice) {
+			errorText.textContent = pendingSessionNotice;
+			pendingSessionNotice = "";
+		}
+
+		// Handler untuk form submission
+		const handleLoginSubmit = async (event) => {
+			if (event) {
+				event.preventDefault();
 			}
+			errorText.textContent = "";
 
-			setSession(account);
-			await hydrateRecordsFromBackend();
-			renderApp();
+			await runWithButtonLoading(loginSubmitButton, "Login...", async () => {
+				const loginIdentifier = usernameInput.value.trim();
+				const password = passwordInput.value.trim();
+
+				if (!loginIdentifier || !password) {
+					errorText.textContent = "Username/email dan password harus diisi.";
+					return;
+				}
+
+				const account = await resolveLoginAccount(loginIdentifier, password);
+
+				if (!account) {
+					errorText.textContent = "Username/email atau password tidak valid.";
+					return;
+				}
+
+				setSession(account);
+				await hydrateRecordsFromBackend();
+				renderApp();
+			});
+		};
+
+		// Attach form submit event
+		loginForm.addEventListener("submit", handleLoginSubmit);
+
+		// Fallback: juga attach ke button click untuk memastikan login bekerja
+		loginSubmitButton.addEventListener("click", async (event) => {
+			event.preventDefault();
+			await handleLoginSubmit();
 		});
-	});
+
+		// Allow Enter key to trigger login
+		usernameInput.addEventListener("keypress", (event) => {
+			if (event.key === "Enter") {
+				handleLoginSubmit();
+			}
+		});
+
+		passwordInput.addEventListener("keypress", (event) => {
+			if (event.key === "Enter") {
+				handleLoginSubmit();
+			}
+		});
+	} catch (error) {
+		console.error("renderLogin error:", error);
+	}
 }
 
 function getTasklistCount(session) {
