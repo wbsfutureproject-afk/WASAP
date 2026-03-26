@@ -6,6 +6,8 @@ const USER_MASTER_KEY = "she_wbs_user_master";
 const LEAVE_SETTINGS_KEY = "she_wbs_leave_settings";
 const KTA_KEY = "she_wbs_kta";
 const TTA_KEY = "she_wbs_tta";
+const KTA_BACKUP_KEY = "she_wbs_kta_backup";
+const TTA_BACKUP_KEY = "she_wbs_tta_backup";
 const FATIGUE_HISTORY_KEY = "she_wbs_fatigue_history";
 const UNITS_KEY = "she_wbs_units";
 const LAPORAN_FATIGUE_TENGAH_KEY = "she_wbs_laporan_fatigue_tengah";
@@ -448,8 +450,89 @@ function readLocalArray(localStorageKey) {
 	}
 }
 
+function getBackupStorageKey(localStorageKey) {
+	if (localStorageKey === KTA_KEY) {
+		return KTA_BACKUP_KEY;
+	}
+
+	if (localStorageKey === TTA_KEY) {
+		return TTA_BACKUP_KEY;
+	}
+
+	return "";
+}
+
+function readBackupArray(localStorageKey) {
+	const backupKey = getBackupStorageKey(localStorageKey);
+	if (!backupKey) {
+		return [];
+	}
+
+	const raw = localStorage.getItem(backupKey);
+	if (!raw) {
+		return [];
+	}
+
+	try {
+		const parsed = JSON.parse(raw);
+		if (!Array.isArray(parsed)) {
+			return [];
+		}
+
+		return parsed.filter((item) => item && Array.isArray(item.records));
+	} catch (error) {
+		return [];
+	}
+}
+
+function getLatestBackupRecords(localStorageKey) {
+	const backups = readBackupArray(localStorageKey);
+	if (backups.length === 0) {
+		return [];
+	}
+
+	const latest = backups[backups.length - 1];
+	return Array.isArray(latest.records) ? latest.records : [];
+}
+
+function appendBackupSnapshot(localStorageKey, records) {
+	const backupKey = getBackupStorageKey(localStorageKey);
+	if (!backupKey) {
+		return;
+	}
+
+	const normalizedRecords = Array.isArray(records) ? records : [];
+	if (normalizedRecords.length === 0) {
+		return;
+	}
+
+	const backups = readBackupArray(localStorageKey);
+	const today = new Date().toISOString().slice(0, 10);
+	const nextEntry = {
+		date: today,
+		timestamp: new Date().toISOString(),
+		records: normalizedRecords,
+	};
+
+	if (backups.length > 0) {
+		const latest = backups[backups.length - 1];
+		if (latest?.date === today) {
+			backups[backups.length - 1] = nextEntry;
+		} else {
+			backups.push(nextEntry);
+		}
+	} else {
+		backups.push(nextEntry);
+	}
+
+	const limitedBackups = backups.slice(-14);
+	localStorage.setItem(backupKey, JSON.stringify(limitedBackups));
+}
+
 function writeLocalArray(localStorageKey, records) {
-	localStorage.setItem(localStorageKey, JSON.stringify(Array.isArray(records) ? records : []));
+	const normalizedRecords = Array.isArray(records) ? records : [];
+	localStorage.setItem(localStorageKey, JSON.stringify(normalizedRecords));
+	appendBackupSnapshot(localStorageKey, normalizedRecords);
 }
 
 async function syncArrayData(endpoint, localStorageKey) {
@@ -464,8 +547,13 @@ async function syncArrayData(endpoint, localStorageKey) {
 		return;
 	}
 
-	// Backend kosong dan lokal kosong — tidak ada yang dilakukan
+	// Backend kosong dan lokal kosong — coba pulihkan dari backup lokal
 	if (backendRecords.length === 0 && localRecords.length === 0) {
+		const latestBackup = getLatestBackupRecords(localStorageKey);
+		if (latestBackup.length > 0) {
+			writeLocalArray(localStorageKey, latestBackup);
+			await pushRecordsToBackend(endpoint, latestBackup);
+		}
 		return;
 	}
 
@@ -3894,14 +3982,28 @@ function renderDashboard(session) {
 				records[editIndex] = payload;
 				writeLocalArray(KTA_KEY, records);
 			} else {
-				const createResult = await createKtaRecord(payload);
+				let createPayload = { ...payload };
+				let createResult = await createKtaRecord(createPayload);
+
+				if (!createResult.ok && createResult.status === 409) {
+					await syncArrayData(KTA_SYNC_ENDPOINT, KTA_KEY);
+					createPayload = {
+						...createPayload,
+						noId: createKtaId(),
+					};
+					document.getElementById("ktaNoId").value = createPayload.noId;
+					createResult = await createKtaRecord(createPayload);
+				}
+
 				if (!createResult.ok) {
 					ktaError.textContent = getApiErrorMessage(createResult, "Gagal menyimpan data KTA ke backend.");
 					return;
 				}
 
-				records.push(payload);
-				writeLocalArray(KTA_KEY, records);
+				const latestRecords = getKtaRecords();
+				latestRecords.push(createPayload);
+				writeLocalArray(KTA_KEY, latestRecords);
+				payload.noId = createPayload.noId;
 			}
 
 			ktaSuccess.textContent =
