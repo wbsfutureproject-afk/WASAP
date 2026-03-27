@@ -621,10 +621,102 @@ function mergeRecordsByNoId(primaryRecords, secondaryRecords) {
 	return Array.from(byNoId.values());
 }
 
+function writeLocalStorageValue(storageKey, value) {
+	try {
+		localStorage.setItem(storageKey, value);
+		return { ok: true, error: null };
+	} catch (error) {
+		return { ok: false, error };
+	}
+}
+
+function buildCompactPrimaryRecords(records) {
+	const normalizedRecords = Array.isArray(records) ? records : [];
+	return normalizedRecords.map((record) => compactRecordForBackup(record));
+}
+
+function buildLocalStorageWarning(mode) {
+	if (mode === "compact") {
+		return "Cache lokal hampir penuh. Data utama tetap tersimpan di backend, cache lokal disimpan dalam mode compact.";
+	}
+
+	if (mode === "latest") {
+		return "Cache lokal penuh. Data utama tetap tersimpan di backend, cache lokal hanya menyimpan data terbaru.";
+	}
+
+	if (mode === "skipped") {
+		return "Cache lokal penuh. Data utama tetap tersimpan di backend, namun cache lokal tidak diperbarui.";
+	}
+
+	return "";
+}
+
 function writeLocalArray(localStorageKey, records) {
 	const normalizedRecords = Array.isArray(records) ? records : [];
-	localStorage.setItem(localStorageKey, JSON.stringify(normalizedRecords));
+	const primaryPayload = JSON.stringify(normalizedRecords);
+	const primaryWriteResult = writeLocalStorageValue(localStorageKey, primaryPayload);
+
+	if (!primaryWriteResult.ok) {
+		if (!isQuotaExceededError(primaryWriteResult.error)) {
+			console.warn("[Storage] Gagal menyimpan data lokal:", primaryWriteResult.error);
+			return {
+				ok: false,
+				mode: "skipped",
+				warning: "Cache lokal gagal diperbarui.",
+			};
+		}
+
+		const compactRecords = buildCompactPrimaryRecords(normalizedRecords);
+		const compactPayload = JSON.stringify(compactRecords);
+		const compactWriteResult = writeLocalStorageValue(localStorageKey, compactPayload);
+
+		if (compactWriteResult.ok) {
+			appendBackupSnapshot(localStorageKey, normalizedRecords);
+			console.warn("[Storage] Quota penuh, data utama disimpan dalam mode compact.");
+			return {
+				ok: true,
+				mode: "compact",
+				warning: buildLocalStorageWarning("compact"),
+			};
+		}
+
+		if (!isQuotaExceededError(compactWriteResult.error)) {
+			console.warn("[Storage] Gagal menyimpan data compact:", compactWriteResult.error);
+			return {
+				ok: false,
+				mode: "skipped",
+				warning: "Cache lokal gagal diperbarui.",
+			};
+		}
+
+		const latestCompact = compactRecords.slice(-30);
+		const latestPayload = JSON.stringify(latestCompact);
+		const latestWriteResult = writeLocalStorageValue(localStorageKey, latestPayload);
+
+		if (latestWriteResult.ok) {
+			appendBackupSnapshot(localStorageKey, normalizedRecords);
+			console.warn("[Storage] Quota sangat terbatas, hanya data compact terbaru yang disimpan.");
+			return {
+				ok: true,
+				mode: "latest",
+				warning: buildLocalStorageWarning("latest"),
+			};
+		}
+
+		console.warn("[Storage] Cache lokal dilewati karena quota storage penuh:", latestWriteResult.error);
+		return {
+			ok: false,
+			mode: "skipped",
+			warning: buildLocalStorageWarning("skipped"),
+		};
+	}
+
 	appendBackupSnapshot(localStorageKey, normalizedRecords);
+	return {
+		ok: true,
+		mode: "full",
+		warning: "",
+	};
 }
 
 async function syncArrayData(endpoint, localStorageKey) {
@@ -1320,9 +1412,9 @@ function createTtaId() {
 }
 
 const IMAGE_COMPRESSION_MAX_DIMENSION = 1600;
-const IMAGE_COMPRESSION_TARGET_BYTES = 900 * 1024;
-const IMAGE_COMPRESSION_QUALITY_STEPS = [0.82, 0.72, 0.62, 0.52];
-const IMAGE_COMPRESSION_SCALE_STEPS = [1, 0.85, 0.7, 0.55];
+const IMAGE_COMPRESSION_TARGET_BYTES = 450 * 1024;
+const IMAGE_COMPRESSION_QUALITY_STEPS = [0.8, 0.68, 0.56, 0.46, 0.36, 0.28];
+const IMAGE_COMPRESSION_SCALE_STEPS = [1, 0.85, 0.7, 0.55, 0.42];
 
 function fileToDataUrl(file) {
 	return new Promise((resolve) => {
@@ -1545,10 +1637,7 @@ async function resolveLoginAccount(loginIdentifier, password) {
 }
 
 function getReporterProfile(session) {
-	const sessionUsernameKey = String(session?.username || "").trim().toLowerCase();
-	const managedUser = getManagedUsers().find(
-		(item) => String(item?.username || "").trim().toLowerCase() === sessionUsernameKey,
-	);
+	const managedUser = getManagedUsers().find((item) => item.username.toLowerCase() === session.username.toLowerCase());
 
 	if (managedUser) {
 		return {
@@ -4112,6 +4201,7 @@ function renderDashboard(session) {
 
 			const records = getKtaRecords();
 			console.log("[KTA Submit] Total records sebelumnya:", records.length);
+			let localWriteResult = { ok: true, mode: "full", warning: "" };
 
 			if (editIndex >= 0 && isSuperAdmin) {
 				console.log("[KTA Submit] Mode EDIT, editIndex:", editIndex);
@@ -4132,8 +4222,8 @@ function renderDashboard(session) {
 				}
 
 				records[editIndex] = payload;
-				writeLocalArray(KTA_KEY, records);
-				console.log("[KTA Submit] Update berhasil disimpan ke lokal");
+				localWriteResult = writeLocalArray(KTA_KEY, records);
+				console.log("[KTA Submit] Update lokal mode:", localWriteResult.mode);
 			} else {
 				console.log("[KTA Submit] Mode CREATE");
 				let createPayload = { ...payload };
@@ -4162,15 +4252,18 @@ function renderDashboard(session) {
 
 				const latestRecords = getKtaRecords();
 				latestRecords.push(createPayload);
-				writeLocalArray(KTA_KEY, latestRecords);
+				localWriteResult = writeLocalArray(KTA_KEY, latestRecords);
 				payload.noId = createPayload.noId;
-				console.log("[KTA Submit] Create berhasil, total records sekarang:", latestRecords.length);
+				console.log("[KTA Submit] Create berhasil, total records sekarang:", latestRecords.length, "mode:", localWriteResult.mode);
 			}
 
 			ktaSuccess.textContent =
 				editIndex >= 0 && isSuperAdmin
 					? `Data KTA berhasil diperbarui dengan No ID ${payload.noId}.`
 					: `Data KTA berhasil disimpan dengan No ID ${payload.noId}.`;
+			if (localWriteResult.warning) {
+				ktaSuccess.textContent = `${ktaSuccess.textContent} ${localWriteResult.warning}`;
+			}
 			console.log("[KTA Submit] SUCCESS:", ktaSuccess.textContent);
 			resetKtaForm();
 			renderKtaHistory();
@@ -5444,9 +5537,7 @@ function renderDashboard(session) {
 				return "Username sudah digunakan oleh akun sistem.";
 			}
 
-			const duplicate = users.some(
-				(item, index) => index !== editIndex && String(item?.username || "").trim().toLowerCase() === usernameLower,
-			);
+			const duplicate = users.some((item, index) => index !== editIndex && item.username.toLowerCase() === usernameLower);
 			if (duplicate) {
 				return "Username tidak boleh duplikasi.";
 			}
