@@ -18,6 +18,8 @@ services:
         value: wbs_storage
       - key: SUPABASE_RECORD_KEY
         value: she_wbs
+      - key: AUTH_TOKEN_SECRET
+        sync: false
       - key: DATA_DIR
         value: /var/data
       - key: STORAGE_FILE_PATH

@@ -24,6 +24,9 @@ const supabaseServiceRoleKey = String(process.env.SUPABASE_SERVICE_ROLE_KEY || "
 const supabaseTable = String(process.env.SUPABASE_TABLE || "wbs_storage").trim();
 const supabaseRecordKey = String(process.env.SUPABASE_RECORD_KEY || "she_wbs").trim();
 const isSupabaseEnabled = Boolean(supabaseUrl && supabaseServiceRoleKey);
+const authTokenSecret = String(process.env.AUTH_TOKEN_SECRET || "").trim() ||
+	crypto.createHash("sha256").update(supabaseServiceRoleKey || "she_wbs_default").digest("hex");
+const TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
 const EMPTY_STORE = {
 	kta: [],
@@ -41,7 +44,15 @@ const SYSTEM_USERS = {
 	user: { username: "user", password: "user", role: "User" },
 };
 
-const issuedTokens = new Map();
+function toBase64Url(buffer) {
+	return buffer.toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
+}
+
+function fromBase64Url(str) {
+	const padded = str.replace(/-/g, "+").replace(/_/g, "/");
+	const padding = (4 - (padded.length % 4)) % 4;
+	return Buffer.from(padded + "=".repeat(padding), "base64");
+}
 
 function sanitizeStore(rawStore) {
 	return {
@@ -55,13 +66,67 @@ function sanitizeStore(rawStore) {
 	};
 }
 function issueAuthToken(account) {
-	const token = crypto.randomBytes(24).toString("hex");
-	issuedTokens.set(token, {
-		username: account.username,
-		role: account.role,
+	const payload = JSON.stringify({
+		username: String(account.username || ""),
+		role: String(account.role || ""),
 		issuedAt: Date.now(),
+		expiresAt: Date.now() + TOKEN_TTL_MS,
 	});
-	return token;
+	const payloadB64 = toBase64Url(Buffer.from(payload));
+	const sig = toBase64Url(crypto.createHmac("sha256", authTokenSecret).update(payloadB64).digest());
+	return `${payloadB64}.${sig}`;
+}
+
+function verifyAuthToken(token) {
+	if (!token || typeof token !== "string") {
+		return null;
+	}
+
+	const dotIndex = token.lastIndexOf(".");
+	if (dotIndex < 0) {
+		return null;
+	}
+
+	const payloadB64 = token.slice(0, dotIndex);
+	const sigB64 = token.slice(dotIndex + 1);
+
+	const expectedSig = toBase64Url(crypto.createHmac("sha256", authTokenSecret).update(payloadB64).digest());
+
+	const sigBuf = Buffer.from(sigB64);
+	const expectedBuf = Buffer.from(expectedSig);
+
+	if (sigBuf.length !== expectedBuf.length) {
+		return null;
+	}
+
+	try {
+		if (!crypto.timingSafeEqual(sigBuf, expectedBuf)) {
+			return null;
+		}
+	} catch {
+		return null;
+	}
+
+	let parsed;
+	try {
+		parsed = JSON.parse(fromBase64Url(payloadB64).toString("utf-8"));
+	} catch {
+		return null;
+	}
+
+	if (!parsed || typeof parsed !== "object") {
+		return null;
+	}
+
+	if (parsed.expiresAt && Date.now() > parsed.expiresAt) {
+		return null;
+	}
+
+	return {
+		username: String(parsed.username || ""),
+		role: String(parsed.role || ""),
+		issuedAt: parsed.issuedAt,
+	};
 }
 
 function isSuperAdminAccount(account) {
@@ -295,32 +360,6 @@ function normalizeUserPayload(payload, existingUser = null) {
 	return normalizedUser;
 }
 
-function normalizeUsersCollection(users) {
-	if (!Array.isArray(users)) {
-		return null;
-	}
-
-	const normalizedUsers = [];
-	const seenUsernames = new Set();
-
-	users.forEach((item) => {
-		const normalized = normalizeUserPayload(item);
-		if (!normalized) {
-			return;
-		}
-
-		const usernameKey = normalizeKey(normalized.username);
-		if (!usernameKey || seenUsernames.has(usernameKey)) {
-			return;
-		}
-
-		seenUsernames.add(usernameKey);
-		normalizedUsers.push(normalized);
-	});
-
-	return normalizedUsers;
-}
-
 function resolveManagedAccount(storeUsers, loginIdentifier) {
 	return storeUsers.find((item) => {
 		const itemUsername = normalizeKey(item?.username || item?.userName || item?.user);
@@ -379,7 +418,7 @@ app.use("/api", (req, res, next) => {
 	}
 
 	const token = authHeader.slice(7).trim();
-	const authAccount = issuedTokens.get(token);
+	const authAccount = verifyAuthToken(token);
 	if (!token || !authAccount) {
 		res.status(401).json({ message: "Unauthorized. Token tidak valid atau expired." });
 		return;
@@ -628,8 +667,7 @@ app.put("/api/master", async (req, res) => {
 	}
 
 	const store = await readStore();
-	const normalizedUsers = normalizeUsersCollection(payload.users);
-	store.users = normalizedUsers || store.users;
+	store.users = Array.isArray(payload.users) ? payload.users : store.users;
 	store.departments = Array.isArray(payload.departments) ? payload.departments : store.departments;
 	store.pics = Array.isArray(payload.pics) ? payload.pics : store.pics;
 	store.leaveSettings = Array.isArray(payload.leaveSettings) ? payload.leaveSettings : store.leaveSettings;
