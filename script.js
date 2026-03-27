@@ -1545,7 +1545,10 @@ async function resolveLoginAccount(loginIdentifier, password) {
 }
 
 function getReporterProfile(session) {
-	const managedUser = getManagedUsers().find((item) => item.username.toLowerCase() === session.username.toLowerCase());
+	const sessionUsernameKey = String(session?.username || "").trim().toLowerCase();
+	const managedUser = getManagedUsers().find(
+		(item) => String(item?.username || "").trim().toLowerCase() === sessionUsernameKey,
+	);
 
 	if (managedUser) {
 		return {
@@ -5441,7 +5444,9 @@ function renderDashboard(session) {
 				return "Username sudah digunakan oleh akun sistem.";
 			}
 
-			const duplicate = users.some((item, index) => index !== editIndex && item.username.toLowerCase() === usernameLower);
+			const duplicate = users.some(
+				(item, index) => index !== editIndex && String(item?.username || "").trim().toLowerCase() === usernameLower,
+			);
 			if (duplicate) {
 				return "Username tidak boleh duplikasi.";
 			}

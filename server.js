@@ -295,6 +295,32 @@ function normalizeUserPayload(payload, existingUser = null) {
 	return normalizedUser;
 }
 
+function normalizeUsersCollection(users) {
+	if (!Array.isArray(users)) {
+		return null;
+	}
+
+	const normalizedUsers = [];
+	const seenUsernames = new Set();
+
+	users.forEach((item) => {
+		const normalized = normalizeUserPayload(item);
+		if (!normalized) {
+			return;
+		}
+
+		const usernameKey = normalizeKey(normalized.username);
+		if (!usernameKey || seenUsernames.has(usernameKey)) {
+			return;
+		}
+
+		seenUsernames.add(usernameKey);
+		normalizedUsers.push(normalized);
+	});
+
+	return normalizedUsers;
+}
+
 function resolveManagedAccount(storeUsers, loginIdentifier) {
 	return storeUsers.find((item) => {
 		const itemUsername = normalizeKey(item?.username || item?.userName || item?.user);
@@ -602,7 +628,8 @@ app.put("/api/master", async (req, res) => {
 	}
 
 	const store = await readStore();
-	store.users = Array.isArray(payload.users) ? payload.users : store.users;
+	const normalizedUsers = normalizeUsersCollection(payload.users);
+	store.users = normalizedUsers || store.users;
 	store.departments = Array.isArray(payload.departments) ? payload.departments : store.departments;
 	store.pics = Array.isArray(payload.pics) ? payload.pics : store.pics;
 	store.leaveSettings = Array.isArray(payload.leaveSettings) ? payload.leaveSettings : store.leaveSettings;
