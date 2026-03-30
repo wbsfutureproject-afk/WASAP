@@ -2238,18 +2238,28 @@ function renderDashboard(session) {
 	}
 
 	function renderAchievementDonutChart(title, dimensionKey, data, activeFilter, dashboardType) {
+		const riskLevelColorMap = {
+			critical: "#dc3545",
+			high: "#fd7e14",
+			medium: "#ffc107",
+			low: "#198754",
+		};
+
 		const total = data.reduce((sum, item) => sum + item.count, 0);
 		let cursor = 0;
 		const segments = data.map((item, index) => {
 			const portion = total === 0 ? 0 : (item.count / total) * 100;
 			const from = cursor;
 			const to = cursor + portion;
+			const normalizedLabel = String(item.label || "").trim().toLowerCase();
+			const fixedColor = dimensionKey === "riskLevel" ? riskLevelColorMap[normalizedLabel] : null;
 			cursor = to;
 			return {
 				...item,
 				from,
 				to,
 				hue: (index * 47) % 360,
+				color: fixedColor || `hsl(${(index * 47) % 360}, 72%, 46%)`,
 			};
 		});
 
@@ -2257,7 +2267,7 @@ function renderDashboard(session) {
 			segments.length === 0
 				? "conic-gradient(#e5e7eb 0deg 360deg)"
 				: `conic-gradient(${segments
-						.map((item) => `hsl(${item.hue}, 72%, 46%) ${item.from}% ${item.to}%`)
+						.map((item) => `${item.color} ${item.from}% ${item.to}%`)
 						.join(",")})`;
 
 		return `
@@ -2284,7 +2294,7 @@ function renderDashboard(session) {
 												data-dimension="${dimensionKey}"
 												data-value="${encodeURIComponent(item.label)}"
 											>
-												<span class="achievement-donut-dot" style="--donut-color:hsl(${item.hue}, 72%, 46%);"></span>
+												<span class="achievement-donut-dot" style="--donut-color:${item.color};"></span>
 												<span class="achievement-dist-label">${escapeAchievementHtml(item.label)}</span>
 												<span class="achievement-dist-count">${item.count}</span>
 											</button>
