@@ -15,6 +15,7 @@ const BACKEND_HEALTH_ENDPOINT = "/api/health";
 const KTA_SYNC_ENDPOINT = "/api/kta";
 const TTA_SYNC_ENDPOINT = "/api/tta";
 const FATIGUE_HISTORY_SYNC_ENDPOINT = "/api/fatigue-history";
+const LAPORAN_FATIGUE_TENGAH_SYNC_ENDPOINT = "/api/laporan-fatigue-tengah";
 const MASTER_SYNC_ENDPOINT = "/api/master";
 const AUTH_LOGIN_ENDPOINT = "/api/auth/login";
 const USERS_ENDPOINT = "/api/users";
@@ -890,6 +891,7 @@ async function hydrateRecordsFromBackend() {
 		syncArrayData(KTA_SYNC_ENDPOINT, KTA_KEY),
 		syncArrayData(TTA_SYNC_ENDPOINT, TTA_KEY),
 		syncFatigueHistoryFromBackend(),
+		syncLaporanFatigueTengahFromBackend(),
 		hydrateMasterFromBackend(),
 	]);
 }
@@ -911,6 +913,25 @@ async function syncFatigueHistoryFromBackend() {
 	}
 
 	writeLocalArray(FATIGUE_HISTORY_KEY, backendRecords);
+}
+
+async function syncLaporanFatigueTengahFromBackend() {
+	const backendRecords = await fetchRecordsFromBackend(LAPORAN_FATIGUE_TENGAH_SYNC_ENDPOINT);
+	const localRecords = getLaporanFatigueTengah();
+
+	if (!Array.isArray(backendRecords)) {
+		if (localRecords.length > 0) {
+			await pushRecordsToBackend(LAPORAN_FATIGUE_TENGAH_SYNC_ENDPOINT, localRecords);
+		}
+		return;
+	}
+
+	if (backendRecords.length === 0 && localRecords.length > 0) {
+		await pushRecordsToBackend(LAPORAN_FATIGUE_TENGAH_SYNC_ENDPOINT, localRecords);
+		return;
+	}
+
+	setLaporanFatigueTengah(backendRecords);
 }
 
 function setSession(session) {
@@ -1397,6 +1418,17 @@ function getLaporanFatigueTengah() {
 
 function setLaporanFatigueTengah(records) {
 	localStorage.setItem(LAPORAN_FATIGUE_TENGAH_KEY, JSON.stringify(Array.isArray(records) ? records : []));
+}
+
+async function saveLaporanFatigueTengah(records) {
+	const normalizedRecords = Array.isArray(records) ? records : [];
+	const isPushed = await pushRecordsToBackend(LAPORAN_FATIGUE_TENGAH_SYNC_ENDPOINT, normalizedRecords);
+	if (!isPushed) {
+		return false;
+	}
+
+	setLaporanFatigueTengah(normalizedRecords);
+	return true;
 }
 
 function getTodayDate() {
@@ -6202,6 +6234,10 @@ function renderDashboard(session) {
 		contentArea.innerHTML = `
 			<h2>Laporan Fatigue Tengah Shift</h2>
 			<p class="subtitle">Isi NIK untuk sinkron otomatis data dari History Fatigue.</p>
+			<div class="inline-actions">
+				<button type="button" id="lftRefreshBtn" class="btn-small btn-edit">Muat Ulang dari Server</button>
+			</div>
+			<p id="lftSyncInfo" class="subtitle"></p>
 			<form id="lftForm" class="form-grid" novalidate>
 				<div class="field">
 					<label for="lftNama">Nama</label>
@@ -6271,8 +6307,11 @@ function renderDashboard(session) {
 		const lftError = document.getElementById("lftError");
 		const lftSuccess = document.getElementById("lftSuccess");
 		const lftHistory = document.getElementById("lftHistory");
+		const lftRefreshBtn = document.getElementById("lftRefreshBtn");
+		const lftSyncInfo = document.getElementById("lftSyncInfo");
 
 		let editIndex = -1;
+		let isRefreshingLft = false;
 
 		function setShiftReadonly(isReadonly) {
 			lftShift.disabled = Boolean(isReadonly);
@@ -6411,7 +6450,7 @@ function renderDashboard(session) {
 			});
 
 			lftHistory.querySelectorAll(".lft-delete-btn").forEach((button) => {
-				button.addEventListener("click", () => {
+				button.addEventListener("click", async () => {
 					const index = Number(button.dataset.index);
 					if (!Number.isInteger(index) || index < 0 || index >= records.length) {
 						return;
@@ -6419,8 +6458,14 @@ function renderDashboard(session) {
 					if (!window.confirm("Yakin ingin menghapus data ini?")) {
 						return;
 					}
-					records.splice(index, 1);
-					setLaporanFatigueTengah(records);
+					const nextRecords = records.filter((_, recordIndex) => recordIndex !== index);
+					const isSaved = await saveLaporanFatigueTengah(nextRecords);
+					if (!isSaved) {
+						lftError.textContent = "Gagal menghapus data karena sinkronisasi ke server gagal. Coba lagi.";
+						lftSuccess.textContent = "";
+						return;
+					}
+					records = nextRecords;
 					if (editIndex >= index) {
 						resetLftForm();
 					}
@@ -6463,10 +6508,52 @@ function renderDashboard(session) {
 			}
 		}
 
+		async function refreshLaporanFatigueTengahFromServer(options = {}) {
+			const showLoading = Boolean(options.showLoading);
+
+			if (isRefreshingLft) {
+				return;
+			}
+
+			isRefreshingLft = true;
+			if (lftRefreshBtn) {
+				lftRefreshBtn.disabled = true;
+			}
+
+			if (showLoading) {
+				lftHistory.innerHTML = `<p class="subtitle">Memuat data laporan dari server...</p>`;
+			}
+
+			const backendRecords = await fetchRecordsFromBackend(LAPORAN_FATIGUE_TENGAH_SYNC_ENDPOINT);
+			if (Array.isArray(backendRecords)) {
+				records = backendRecords;
+				setLaporanFatigueTengah(backendRecords);
+				renderLftHistory();
+				if (lftSyncInfo) {
+					lftSyncInfo.textContent = `Data tersinkron dari server (${records.length} data).`;
+				}
+			} else {
+				renderLftHistory();
+				if (lftSyncInfo) {
+					lftSyncInfo.textContent = "Gagal memuat data dari server. Menampilkan cache lokal.";
+				}
+			}
+
+			if (lftRefreshBtn) {
+				lftRefreshBtn.disabled = false;
+			}
+			isRefreshingLft = false;
+		}
+
 		lftNik.addEventListener("input", syncByNik);
 		lftNik.addEventListener("change", syncByNik);
 		lftCancelEditBtn.addEventListener("click", resetLftForm);
-		lftForm.addEventListener("submit", (event) => {
+		if (lftRefreshBtn) {
+			lftRefreshBtn.addEventListener("click", async () => {
+				await refreshLaporanFatigueTengahFromServer();
+			});
+		}
+		lftForm.addEventListener("submit", async (event) => {
 			event.preventDefault();
 			lftError.textContent = "";
 			lftSuccess.textContent = "";
@@ -6507,19 +6594,25 @@ function renderDashboard(session) {
 			if (editIndex >= 0 && editIndex < records.length) {
 				recordData.tanggalSubmit = records[editIndex].tanggalSubmit;
 				records[editIndex] = recordData;
-				lftSuccess.textContent = "Data laporan berhasil diperbarui.";
 			} else {
 				recordData.tanggalSubmit = new Date().toLocaleString("id-ID");
 				records = [recordData, ...records];
-				lftSuccess.textContent = "Data laporan berhasil disubmit.";
 			}
 
-			setLaporanFatigueTengah(records);
+			const isSaved = await saveLaporanFatigueTengah(records);
+			if (!isSaved) {
+				lftError.textContent = "Gagal menyimpan data ke server. Pastikan koneksi/login backend aktif lalu coba lagi.";
+				lftSuccess.textContent = "";
+				return;
+			}
+
+			lftSuccess.textContent = editIndex >= 0 ? "Data laporan berhasil diperbarui." : "Data laporan berhasil disubmit.";
 			resetLftForm();
 			renderLftHistory();
 		});
 
 		renderLftHistory();
+		refreshLaporanFatigueTengahFromServer({ showLoading: true });
 	}
 
 	function renderHistoryFatigueContent() {

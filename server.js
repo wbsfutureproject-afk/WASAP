@@ -32,6 +32,7 @@ const EMPTY_STORE = {
 	kta: [],
 	tta: [],
 	fatigueHistory: [],
+	laporanFatigueTengah: [],
 	departments: [],
 	pics: [],
 	users: [],
@@ -60,6 +61,7 @@ function sanitizeStore(rawStore) {
 		kta: Array.isArray(rawStore?.kta) ? rawStore.kta : [],
 		tta: Array.isArray(rawStore?.tta) ? rawStore.tta : [],
 		fatigueHistory: Array.isArray(rawStore?.fatigueHistory) ? rawStore.fatigueHistory : [],
+		laporanFatigueTengah: Array.isArray(rawStore?.laporanFatigueTengah) ? rawStore.laporanFatigueTengah : [],
 		departments: Array.isArray(rawStore?.departments) ? rawStore.departments : [],
 		pics: Array.isArray(rawStore?.pics) ? rawStore.pics : [],
 		users: Array.isArray(rawStore?.users) ? rawStore.users : [],
@@ -664,6 +666,24 @@ app.put("/api/fatigue-history", async (req, res) => {
 	store.fatigueHistory = incoming;
 	await writeStore(store);
 	res.json({ message: "Fatigue history updated.", count: store.fatigueHistory.length });
+});
+
+app.get("/api/laporan-fatigue-tengah", async (req, res) => {
+	const store = await readStore();
+	res.json({ data: store.laporanFatigueTengah });
+});
+
+app.put("/api/laporan-fatigue-tengah", async (req, res) => {
+	const incoming = Array.isArray(req.body) ? req.body : req.body?.data;
+	if (!Array.isArray(incoming)) {
+		res.status(400).json({ message: "Body harus array atau object { data: [] }." });
+		return;
+	}
+
+	const store = await readStore();
+	store.laporanFatigueTengah = incoming;
+	await writeStore(store);
+	res.json({ message: "Laporan fatigue tengah updated.", count: store.laporanFatigueTengah.length });
 });
 
 app.get("/api/master", async (req, res) => {
