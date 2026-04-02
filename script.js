@@ -14,6 +14,7 @@ const LAPORAN_FATIGUE_TENGAH_KEY = "she_wbs_laporan_fatigue_tengah";
 const BACKEND_HEALTH_ENDPOINT = "/api/health";
 const KTA_SYNC_ENDPOINT = "/api/kta";
 const TTA_SYNC_ENDPOINT = "/api/tta";
+const FATIGUE_HISTORY_SYNC_ENDPOINT = "/api/fatigue-history";
 const MASTER_SYNC_ENDPOINT = "/api/master";
 const AUTH_LOGIN_ENDPOINT = "/api/auth/login";
 const USERS_ENDPOINT = "/api/users";
@@ -428,11 +429,16 @@ async function pushRecordsToBackend(endpoint, records) {
 			body: JSON.stringify({ data: records }),
 		});
 
-		if (!response.ok && response.status === 401) {
-			handleUnauthorizedResponse();
+		if (!response.ok) {
+			if (response.status === 401) {
+				handleUnauthorizedResponse();
+			}
+			return false;
 		}
+
+		return true;
 	} catch (error) {
-		return;
+		return false;
 	}
 }
 
@@ -883,8 +889,28 @@ async function hydrateRecordsFromBackend() {
 	await Promise.all([
 		syncArrayData(KTA_SYNC_ENDPOINT, KTA_KEY),
 		syncArrayData(TTA_SYNC_ENDPOINT, TTA_KEY),
+		syncFatigueHistoryFromBackend(),
 		hydrateMasterFromBackend(),
 	]);
+}
+
+async function syncFatigueHistoryFromBackend() {
+	const backendRecords = await fetchRecordsFromBackend(FATIGUE_HISTORY_SYNC_ENDPOINT);
+	const localRecords = readLocalArray(FATIGUE_HISTORY_KEY);
+
+	if (!Array.isArray(backendRecords)) {
+		if (localRecords.length > 0) {
+			await pushRecordsToBackend(FATIGUE_HISTORY_SYNC_ENDPOINT, localRecords);
+		}
+		return;
+	}
+
+	if (backendRecords.length === 0 && localRecords.length > 0) {
+		await pushRecordsToBackend(FATIGUE_HISTORY_SYNC_ENDPOINT, localRecords);
+		return;
+	}
+
+	writeLocalArray(FATIGUE_HISTORY_KEY, backendRecords);
 }
 
 function setSession(session) {
@@ -1307,22 +1333,24 @@ function setTtaRecords(records) {
 }
 
 function getFatigueHistoryRecords() {
-	const raw = localStorage.getItem(FATIGUE_HISTORY_KEY);
-	if (!raw) {
-		return [];
-	}
-
-	try {
-		const data = JSON.parse(raw);
-		return Array.isArray(data) ? data : [];
-	} catch (error) {
-		localStorage.removeItem(FATIGUE_HISTORY_KEY);
-		return [];
-	}
+	return readLocalArray(FATIGUE_HISTORY_KEY);
 }
 
 function setFatigueHistoryRecords(records) {
-	localStorage.setItem(FATIGUE_HISTORY_KEY, JSON.stringify(Array.isArray(records) ? records : []));
+	const normalizedRecords = Array.isArray(records) ? records : [];
+	writeLocalArray(FATIGUE_HISTORY_KEY, normalizedRecords);
+	pushRecordsToBackend(FATIGUE_HISTORY_SYNC_ENDPOINT, normalizedRecords);
+}
+
+async function saveFatigueHistoryRecords(records) {
+	const normalizedRecords = Array.isArray(records) ? records : [];
+	const isPushed = await pushRecordsToBackend(FATIGUE_HISTORY_SYNC_ENDPOINT, normalizedRecords);
+	if (!isPushed) {
+		return false;
+	}
+
+	writeLocalArray(FATIGUE_HISTORY_KEY, normalizedRecords);
+	return true;
 }
 
 function getUnits() {
@@ -1611,29 +1639,11 @@ async function resolveLoginAccount(loginIdentifier, password) {
 				};
 			}
 		}
-	} catch (error) {
-	}
 
-	const normalizedIdentifier = loginIdentifier.trim().toLowerCase();
-	const systemAccount = USERS[normalizedIdentifier];
-	if (systemAccount && systemAccount.password === password) {
-		return { username: systemAccount.username, role: systemAccount.role, token: "local-fallback-token" };
-	}
-
-	const managedAccount = getManagedUsers().find((item) => {
-		const itemUsername = String(item.username || "").trim().toLowerCase();
-		const itemEmail = String(item.alamatEmail || "").trim().toLowerCase();
-		return itemUsername === normalizedIdentifier || itemEmail === normalizedIdentifier;
-	});
-	if (!managedAccount || managedAccount.password !== password) {
 		return null;
+	} catch (error) {
+		return { _backendUnreachable: true };
 	}
-
-	return {
-		username: managedAccount.username,
-		role: managedAccount.kategori,
-		token: "local-fallback-token",
-	};
 }
 
 function getReporterProfile(session) {
@@ -1740,6 +1750,12 @@ function renderLogin() {
 						if (!account) {
 							errorText.textContent = "Username/email atau password tidak valid.";
 							console.error("[Login] Account tidak ditemukan");
+							return;
+						}
+
+						if (account._backendUnreachable) {
+							errorText.textContent = "Server belum merespons. Tunggu 30–60 detik lalu coba login ulang (server mungkin sedang aktif dari kondisi tidur).";
+							console.warn("[Login] Backend tidak dapat dijangkau");
 							return;
 						}
 
@@ -7089,7 +7105,7 @@ function renderDashboard(session) {
 			});
 
 			fatigueHistory.querySelectorAll(".fatigue-delete-btn").forEach((button) => {
-				button.addEventListener("click", () => {
+				button.addEventListener("click", async () => {
 					const index = Number(button.dataset.index);
 					if (!Number.isInteger(index) || index < 0 || index >= fatigueRecords.length) {
 						return;
@@ -7100,8 +7116,15 @@ function renderDashboard(session) {
 						return;
 					}
 
-					fatigueRecords.splice(index, 1);
-					setFatigueHistoryRecords(fatigueRecords);
+					const nextRecords = fatigueRecords.filter((_, itemIndex) => itemIndex !== index);
+					const isSaved = await saveFatigueHistoryRecords(nextRecords);
+					if (!isSaved) {
+						fatigueError.textContent = "Gagal menghapus data karena sinkronisasi ke server gagal. Coba lagi.";
+						fatigueSuccess.textContent = "";
+						return;
+					}
+
+					fatigueRecords = nextRecords;
 					renderFatigueHistoryTable();
 				});
 			});
@@ -7257,8 +7280,15 @@ function renderDashboard(session) {
 						return;
 					}
 
-					fatigueRecords = [buildFatigueRecord(), ...fatigueRecords];
-					setFatigueHistoryRecords(fatigueRecords);
+					const nextRecords = [buildFatigueRecord(), ...fatigueRecords];
+					const isSaved = await saveFatigueHistoryRecords(nextRecords);
+					if (!isSaved) {
+						fatigueError.textContent = "Gagal menyimpan data ke server. Pastikan koneksi/login backend aktif lalu coba lagi.";
+						fatigueSuccess.textContent = "";
+						return;
+					}
+
+					fatigueRecords = nextRecords;
 					renderFatigueHistoryTable();
 					fatigueSuccess.textContent = "Data history fatigue berhasil disubmit.";
 					resetFatigueForm();

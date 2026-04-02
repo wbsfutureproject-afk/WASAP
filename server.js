@@ -31,6 +31,7 @@ const TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const EMPTY_STORE = {
 	kta: [],
 	tta: [],
+	fatigueHistory: [],
 	departments: [],
 	pics: [],
 	users: [],
@@ -58,6 +59,7 @@ function sanitizeStore(rawStore) {
 	return {
 		kta: Array.isArray(rawStore?.kta) ? rawStore.kta : [],
 		tta: Array.isArray(rawStore?.tta) ? rawStore.tta : [],
+		fatigueHistory: Array.isArray(rawStore?.fatigueHistory) ? rawStore.fatigueHistory : [],
 		departments: Array.isArray(rawStore?.departments) ? rawStore.departments : [],
 		pics: Array.isArray(rawStore?.pics) ? rawStore.pics : [],
 		users: Array.isArray(rawStore?.users) ? rawStore.users : [],
@@ -644,6 +646,24 @@ app.delete("/api/tta/:noId", async (req, res) => {
 
 	await writeStore(store);
 	res.json({ message: "Record TTA berhasil dihapus.", count: store.tta.length });
+});
+
+app.get("/api/fatigue-history", async (req, res) => {
+	const store = await readStore();
+	res.json({ data: store.fatigueHistory });
+});
+
+app.put("/api/fatigue-history", async (req, res) => {
+	const incoming = Array.isArray(req.body) ? req.body : req.body?.data;
+	if (!Array.isArray(incoming)) {
+		res.status(400).json({ message: "Body harus array atau object { data: [] }." });
+		return;
+	}
+
+	const store = await readStore();
+	store.fatigueHistory = incoming;
+	await writeStore(store);
+	res.json({ message: "Fatigue history updated.", count: store.fatigueHistory.length });
 });
 
 app.get("/api/master", async (req, res) => {
