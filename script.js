@@ -420,12 +420,14 @@ async function fetchRecordsFromBackend(endpoint) {
 	}
 }
 
-async function pushRecordsToBackend(endpoint, records) {
+async function pushRecordsToBackend(endpoint, records, options = {}) {
 	try {
+		const extraHeaders = options && typeof options === "object" ? options.headers || {} : {};
 		const response = await fetch(toApiUrl(endpoint), {
 			method: "PUT",
 			headers: buildAuthHeaders({
 				"Content-Type": "application/json",
+				...extraHeaders,
 			}),
 			body: JSON.stringify({ data: records }),
 		});
@@ -1357,20 +1359,65 @@ function getFatigueHistoryRecords() {
 	return readLocalArray(FATIGUE_HISTORY_KEY);
 }
 
+function createFatigueRecordKey(record) {
+	const item = record && typeof record === "object" ? record : {};
+	return [
+		String(item.tanggalSubmit || "").trim(),
+		String(item.nik || "").trim(),
+		String(item.tanggal || "").trim(),
+		String(item.shift || "").trim(),
+		String(item.nama || "").trim(),
+	].join("|");
+}
+
+function mergeFatigueHistoryRecords(primaryRecords, secondaryRecords) {
+	const merged = [];
+	const seenKeys = new Set();
+
+	const appendRecord = (record) => {
+		if (!record || typeof record !== "object") {
+			return;
+		}
+
+		const key = createFatigueRecordKey(record);
+		if (seenKeys.has(key)) {
+			return;
+		}
+
+		seenKeys.add(key);
+		merged.push(record);
+	};
+
+	(primaryRecords || []).forEach(appendRecord);
+	(secondaryRecords || []).forEach(appendRecord);
+
+	return merged;
+}
+
 function setFatigueHistoryRecords(records) {
 	const normalizedRecords = Array.isArray(records) ? records : [];
 	writeLocalArray(FATIGUE_HISTORY_KEY, normalizedRecords);
-	pushRecordsToBackend(FATIGUE_HISTORY_SYNC_ENDPOINT, normalizedRecords);
 }
 
-async function saveFatigueHistoryRecords(records) {
+async function saveFatigueHistoryRecords(records, options = {}) {
 	const normalizedRecords = Array.isArray(records) ? records : [];
-	const isPushed = await pushRecordsToBackend(FATIGUE_HISTORY_SYNC_ENDPOINT, normalizedRecords);
+	const mode = String(options.mode || "upsert").trim().toLowerCase();
+	const allowShrink = mode === "delete";
+	let nextRecords = normalizedRecords;
+
+	const backendRecords = await fetchRecordsFromBackend(FATIGUE_HISTORY_SYNC_ENDPOINT);
+	if (Array.isArray(backendRecords) && !allowShrink) {
+		nextRecords = mergeFatigueHistoryRecords(normalizedRecords, backendRecords);
+	}
+
+	const isPushed = await pushRecordsToBackend(FATIGUE_HISTORY_SYNC_ENDPOINT, nextRecords, {
+		headers: allowShrink ? { "X-Allow-Shrink": "1" } : {},
+	});
 	if (!isPushed) {
 		return false;
 	}
 
-	writeLocalArray(FATIGUE_HISTORY_KEY, normalizedRecords);
+	writeLocalArray(FATIGUE_HISTORY_KEY, nextRecords);
 	return true;
 }
 
@@ -7219,7 +7266,7 @@ function renderDashboard(session) {
 					}
 
 					const nextRecords = fatigueRecords.filter((_, itemIndex) => itemIndex !== index);
-					const isSaved = await saveFatigueHistoryRecords(nextRecords);
+					const isSaved = await saveFatigueHistoryRecords(nextRecords, { mode: "delete" });
 					if (!isSaved) {
 						fatigueError.textContent = "Gagal menghapus data karena sinkronisasi ke server gagal. Coba lagi.";
 						fatigueSuccess.textContent = "";

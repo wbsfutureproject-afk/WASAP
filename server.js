@@ -398,7 +398,7 @@ app.use((req, res, next) => {
 		}
 
 		res.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
-		res.setHeader("Access-Control-Allow-Headers", "Content-Type,Authorization");
+		res.setHeader("Access-Control-Allow-Headers", "Content-Type,Authorization,X-Allow-Shrink");
 	}
 
 	if (req.method === "OPTIONS") {
@@ -663,6 +663,21 @@ app.put("/api/fatigue-history", async (req, res) => {
 	}
 
 	const store = await readStore();
+	const allowShrink = String(req.headers["x-allow-shrink"] || "").trim() === "1";
+	const previousCount = Array.isArray(store.fatigueHistory) ? store.fatigueHistory.length : 0;
+	const incomingCount = incoming.length;
+	const shrinkCount = Math.max(0, previousCount - incomingCount);
+	const isLargeShrink = shrinkCount >= 10 && incomingCount < Math.floor(previousCount * 0.8);
+
+	if (!allowShrink && isLargeShrink) {
+		res.status(409).json({
+			message: "Perubahan ditolak untuk mencegah overwrite data yang lebih sedikit. Muat ulang data terbaru lalu coba lagi.",
+			previousCount,
+			incomingCount,
+		});
+		return;
+	}
+
 	store.fatigueHistory = incoming;
 	await writeStore(store);
 	res.json({ message: "Fatigue history updated.", count: store.fatigueHistory.length });
