@@ -6538,6 +6538,10 @@ function renderDashboard(session) {
 			return `
 				<h2>History Fatigue</h2>
 				<p class="subtitle">Isi NIK untuk sinkron otomatis Nama, Jabatan, dan Departemen dari Daftar User.</p>
+				<div class="inline-actions">
+					<button type="button" id="fatigueRefreshBtn" class="btn-small btn-edit">Muat Ulang dari Server</button>
+				</div>
+				<p id="fatigueSyncInfo" class="subtitle"></p>
 				${users.length === 0 ? '<p class="error">Daftar User belum tersedia. Tambahkan user pada menu Daftar User terlebih dahulu.</p>' : ""}
 				<form id="fatigueForm" class="form-grid" novalidate>
 					<div class="field">
@@ -6682,6 +6686,8 @@ function renderDashboard(session) {
 				fatigueTotalJam: document.getElementById("fatigueTotalJam"),
 				fatigueKekuranganJam: document.getElementById("fatigueKekuranganJam"),
 				fatigueFollowUp: document.getElementById("fatigueFollowUp"),
+				fatigueRefreshBtn: document.getElementById("fatigueRefreshBtn"),
+				fatigueSyncInfo: document.getElementById("fatigueSyncInfo"),
 				submitFatigueBtn: document.getElementById("submitFatigueBtn"),
 				fatigueError: document.getElementById("fatigueError"),
 				fatigueSuccess: document.getElementById("fatigueSuccess"),
@@ -6717,6 +6723,8 @@ function renderDashboard(session) {
 			fatigueTotalJam,
 			fatigueKekuranganJam,
 			fatigueFollowUp,
+			fatigueRefreshBtn,
+			fatigueSyncInfo,
 			submitFatigueBtn,
 			fatigueError,
 			fatigueSuccess,
@@ -6745,6 +6753,7 @@ function renderDashboard(session) {
 		];
 
 		const workerProfileFields = [fatigueNama, fatigueJabatan, fatigueDepartemen];
+		let isRefreshingFatigueHistory = false;
 
 		function clearFieldValues(fieldElements) {
 			fieldElements.forEach((fieldElement) => {
@@ -7130,6 +7139,43 @@ function renderDashboard(session) {
 			});
 		}
 
+		async function refreshFatigueHistoryFromServer(options = {}) {
+			const showLoading = Boolean(options.showLoading);
+
+			if (isRefreshingFatigueHistory) {
+				return;
+			}
+
+			isRefreshingFatigueHistory = true;
+			if (fatigueRefreshBtn) {
+				fatigueRefreshBtn.disabled = true;
+			}
+
+			if (showLoading) {
+				fatigueHistory.innerHTML = `<p class="subtitle">Memuat data history fatigue dari server...</p>`;
+			}
+
+			const backendRecords = await fetchRecordsFromBackend(FATIGUE_HISTORY_SYNC_ENDPOINT);
+			if (Array.isArray(backendRecords)) {
+				fatigueRecords = backendRecords;
+				writeLocalArray(FATIGUE_HISTORY_KEY, backendRecords);
+				renderFatigueHistoryTable();
+				if (fatigueSyncInfo) {
+					fatigueSyncInfo.textContent = `Data tersinkron dari server (${fatigueRecords.length} data).`;
+				}
+			} else {
+				renderFatigueHistoryTable();
+				if (fatigueSyncInfo) {
+					fatigueSyncInfo.textContent = "Gagal memuat data dari server. Menampilkan cache lokal.";
+				}
+			}
+
+			if (fatigueRefreshBtn) {
+				fatigueRefreshBtn.disabled = false;
+			}
+			isRefreshingFatigueHistory = false;
+		}
+
 		function toMinutes(value) {
 			const text = String(value || "").trim();
 			if (!/^\d{2}:\d{2}$/.test(text)) {
@@ -7249,6 +7295,12 @@ function renderDashboard(session) {
 		}
 
 		function bindFatigueFormEvents() {
+			if (fatigueRefreshBtn) {
+				fatigueRefreshBtn.addEventListener("click", async () => {
+					await refreshFatigueHistoryFromServer();
+				});
+			}
+
 			fatigueNik.addEventListener("input", syncUserByNik);
 			fatigueNikPengawas.addEventListener("input", syncSupervisorByNik);
 			fatigueMinumObat.addEventListener("change", () => {
@@ -7304,6 +7356,7 @@ function renderDashboard(session) {
 			validateConditionalKeterangan();
 			renderFatigueHistoryTable();
 			bindFatigueFormEvents();
+			refreshFatigueHistoryFromServer({ showLoading: true });
 		}
 
 		initializeFatigueForm();
