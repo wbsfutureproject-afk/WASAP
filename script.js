@@ -6814,6 +6814,7 @@ function renderDashboard(session) {
 
 		let fatigueRecords = getFatigueHistoryRecords();
 		let isRefreshingFatigueDashboard = false;
+		let selectedDetailType = "all";
 
 		contentArea.innerHTML = `
 			<h2>Dashboard Fatigue</h2>
@@ -6844,20 +6845,22 @@ function renderDashboard(session) {
 			<p id="fatigueDashboardError" class="error"></p>
 			<section class="fatigue-dashboard-grid">
 				<article class="fatigue-dashboard-side">
-					<div class="fatigue-dashboard-metric-card">
+					<button type="button" class="fatigue-dashboard-metric-card fatigue-dashboard-trigger" data-detail="kurangTidur">
 						<p class="fatigue-dashboard-metric-label">Total Input Kurang Tidur</p>
 						<p class="fatigue-dashboard-metric-value" id="fatigueDashboardKurangTidur">0</p>
-					</div>
-					<div class="fatigue-dashboard-metric-card">
+					</button>
+					<button type="button" class="fatigue-dashboard-metric-card fatigue-dashboard-trigger" data-detail="memilikiMasalah">
 						<p class="fatigue-dashboard-metric-label">Total Memiliki Masalah</p>
 						<p class="fatigue-dashboard-metric-value" id="fatigueDashboardMasalah">0</p>
-					</div>
+					</button>
 				</article>
 				<article class="fatigue-dashboard-donut-panel">
 					<div class="fatigue-dashboard-donut" id="fatigueDashboardDonut">
 						<div class="fatigue-dashboard-donut-center">
-							<p class="fatigue-dashboard-total-label">Total History</p>
-							<p class="fatigue-dashboard-total-value" id="fatigueDashboardTotalHistory">0</p>
+							<button type="button" class="fatigue-dashboard-total-trigger fatigue-dashboard-trigger" data-detail="all">
+								<p class="fatigue-dashboard-total-label">Total History</p>
+								<p class="fatigue-dashboard-total-value" id="fatigueDashboardTotalHistory">0</p>
+							</button>
 						</div>
 					</div>
 					<div class="fatigue-dashboard-legend">
@@ -6867,12 +6870,13 @@ function renderDashboard(session) {
 					</div>
 				</article>
 				<article class="fatigue-dashboard-side">
-					<div class="fatigue-dashboard-metric-card">
+					<button type="button" class="fatigue-dashboard-metric-card fatigue-dashboard-trigger" data-detail="minumObat">
 						<p class="fatigue-dashboard-metric-label">Total Meminum Obat</p>
 						<p class="fatigue-dashboard-metric-value" id="fatigueDashboardMinumObat">0</p>
-					</div>
+					</button>
 				</article>
 			</section>
+			<div id="fatigueDashboardDetail" class="fatigue-dashboard-detail"></div>
 		`;
 
 		const startDateInput = document.getElementById("fatigueDashboardStartDate");
@@ -6887,6 +6891,17 @@ function renderDashboard(session) {
 		const dashboardError = document.getElementById("fatigueDashboardError");
 		const dashboardRefreshBtn = document.getElementById("fatigueDashboardRefreshBtn");
 		const dashboardSyncInfo = document.getElementById("fatigueDashboardSyncInfo");
+		const detailContainer = document.getElementById("fatigueDashboardDetail");
+		const triggerButtons = contentArea.querySelectorAll(".fatigue-dashboard-trigger");
+
+		function escapeHtml(value) {
+			return String(value || "")
+				.replaceAll("&", "&amp;")
+				.replaceAll("<", "&lt;")
+				.replaceAll(">", "&gt;")
+				.replaceAll('"', "&quot;")
+				.replaceAll("'", "&#39;");
+		}
 
 		function getDateKey(dateValue) {
 			const rawDate = String(dateValue || "").trim();
@@ -7034,6 +7049,134 @@ function renderDashboard(session) {
 			};
 		}
 
+		function recordHasKurangTidur(record) {
+			return parseDeficitMinutes(record?.hasilKekuranganJamTidur) > 0;
+		}
+
+		function recordHasMasalah(record) {
+			return String(record?.adaMasalah || "").trim().toUpperCase() === "YA";
+		}
+
+		function recordHasMinumObat(record) {
+			return String(record?.minumObat || "").trim().toUpperCase() === "YA";
+		}
+
+		function getDetailConfig() {
+			if (selectedDetailType === "kurangTidur") {
+				return {
+					title: "Detail Kurang Tidur",
+					empty: "Tidak ada data kurang tidur pada filter aktif.",
+					filter: (record) => recordHasKurangTidur(record),
+					columns: [
+						"Nama",
+						"Settingan Unit",
+						"Total Jam Tidur",
+						"Kekurangan Jam Tidur",
+					],
+					buildRow: (record) => [
+						escapeHtml(record.nama),
+						escapeHtml(record.settinganUnit),
+						escapeHtml(record.totalJamTidur12JamTerakhir || "-"),
+						escapeHtml(record.hasilKekuranganJamTidur || "-"),
+					],
+				};
+			}
+
+			if (selectedDetailType === "memilikiMasalah") {
+				return {
+					title: "Detail Memiliki Masalah",
+					empty: "Tidak ada data memiliki masalah pada filter aktif.",
+					filter: (record) => recordHasMasalah(record),
+					columns: ["Nama", "Settingan Unit", "Keterangan Masalah"],
+					buildRow: (record) => [
+						escapeHtml(record.nama),
+						escapeHtml(record.settinganUnit),
+						escapeHtml(record.keteranganMasalah || "-")
+					],
+				};
+			}
+
+			if (selectedDetailType === "minumObat") {
+				return {
+					title: "Detail Meminum Obat",
+					empty: "Tidak ada data meminum obat pada filter aktif.",
+					filter: (record) => recordHasMinumObat(record),
+					columns: ["Nama", "Settingan Unit", "Keterangan Minum Obat"],
+					buildRow: (record) => [
+						escapeHtml(record.nama),
+						escapeHtml(record.settinganUnit),
+						escapeHtml(record.keteranganMinumObat || "-")
+					],
+				};
+			}
+
+			return {
+				title: "Detail Total History Fatigue",
+				empty: "Belum ada data history fatigue pada filter aktif.",
+				filter: () => true,
+				columns: [
+					"Nama",
+					"Settingan Unit",
+					"Kurang Tidur",
+					"Meminum Obat",
+					"Memiliki Masalah",
+				],
+				buildRow: (record) => [
+					escapeHtml(record.nama),
+					escapeHtml(record.settinganUnit),
+					recordHasKurangTidur(record)
+						? `${escapeHtml(record.totalJamTidur12JamTerakhir || "-")} | ${escapeHtml(record.hasilKekuranganJamTidur || "-")}`
+						: "-",
+					recordHasMinumObat(record) ? escapeHtml(record.keteranganMinumObat || "YA") : "-",
+					recordHasMasalah(record) ? escapeHtml(record.keteranganMasalah || "YA") : "-",
+				],
+			};
+		}
+
+		function renderFatigueDashboardDetail(filteredRecords) {
+			const config = getDetailConfig();
+			const detailRecords = filteredRecords.filter(config.filter);
+
+			if (detailRecords.length === 0) {
+				detailContainer.innerHTML = `
+					<div class="fatigue-dashboard-detail-card">
+						<h3>${config.title}</h3>
+						<p class="subtitle">${config.empty}</p>
+					</div>
+				`;
+				return;
+			}
+
+			const headerCells = config.columns.map((column) => `<th>${column}</th>`).join("");
+			const bodyRows = detailRecords
+				.map((record) => {
+					const columns = config.buildRow(record);
+					const cells = columns.map((columnValue) => `<td>${columnValue}</td>`).join("");
+					return `<tr>${cells}</tr>`;
+				})
+				.join("");
+
+			detailContainer.innerHTML = `
+				<div class="fatigue-dashboard-detail-card">
+					<h3>${config.title}</h3>
+					<div class="table-wrap">
+						<table class="data-table fatigue-dashboard-detail-table">
+							<thead>
+								<tr>${headerCells}</tr>
+							</thead>
+							<tbody>${bodyRows}</tbody>
+						</table>
+					</div>
+				</div>
+			`;
+		}
+
+		function updateActiveTriggerState() {
+			triggerButtons.forEach((button) => {
+				button.classList.toggle("active", button.dataset.detail === selectedDetailType);
+			});
+		}
+
 		function renderFatigueDashboardStats() {
 			const filteredRecords = getFilteredRecords();
 			const stats = calculateStats(filteredRecords);
@@ -7045,6 +7188,8 @@ function renderDashboard(session) {
 			donutElement.style.background = buildDonutBackground(stats);
 
 			rangeInfoElement.textContent = `Date range aktif: ${formatDateKey(startDateInput.value)} s.d. ${formatDateKey(endDateInput.value)} | Shift: ${shiftInput.options[shiftInput.selectedIndex]?.text || "Semua Shift"}`;
+			updateActiveTriggerState();
+			renderFatigueDashboardDetail(filteredRecords);
 		}
 
 		async function refreshFatigueDashboardFromServer() {
@@ -7088,6 +7233,12 @@ function renderDashboard(session) {
 		startDateInput.addEventListener("change", renderFatigueDashboardStats);
 		endDateInput.addEventListener("change", renderFatigueDashboardStats);
 		shiftInput.addEventListener("change", renderFatigueDashboardStats);
+		triggerButtons.forEach((button) => {
+			button.addEventListener("click", () => {
+				selectedDetailType = String(button.dataset.detail || "all");
+				renderFatigueDashboardStats();
+			});
+		});
 		if (dashboardRefreshBtn) {
 			dashboardRefreshBtn.addEventListener("click", async () => {
 				await refreshFatigueDashboardFromServer();

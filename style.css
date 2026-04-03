@@ -1472,6 +1472,27 @@ input[type="file"] {
 	padding: 12px;
 	background: #fff;
 	box-shadow: 0 6px 20px rgba(15, 23, 42, 0.04);
+	text-align: left;
+	transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.fatigue-dashboard-metric-card:hover,
+.fatigue-dashboard-metric-card.active {
+	border-color: var(--primary);
+	box-shadow: 0 8px 22px rgba(11, 94, 215, 0.14);
+	transform: translateY(-1px);
+}
+
+.fatigue-dashboard-total-trigger {
+	background: transparent;
+	border: 0;
+	padding: 0;
+	cursor: pointer;
+}
+
+.fatigue-dashboard-total-trigger.active .fatigue-dashboard-total-value,
+.fatigue-dashboard-total-trigger:hover .fatigue-dashboard-total-value {
+	color: var(--primary);
 }
 
 .fatigue-dashboard-metric-label {
@@ -1567,6 +1588,28 @@ input[type="file"] {
 
 .fatigue-dashboard-dot-obat {
 	background: #16a34a;
+}
+
+.fatigue-dashboard-detail {
+	margin-top: 14px;
+}
+
+.fatigue-dashboard-detail-card {
+	border: 1px solid var(--border);
+	border-radius: 12px;
+	padding: 14px;
+	background: #fff;
+	box-shadow: 0 6px 20px rgba(15, 23, 42, 0.04);
+}
+
+.fatigue-dashboard-detail-card h3 {
+	margin: 0 0 10px;
+	font-size: 16px;
+}
+
+.fatigue-dashboard-detail-table th,
+.fatigue-dashboard-detail-table td {
+	font-size: 13px;
 }
 
 @media (max-width: 840px) {
