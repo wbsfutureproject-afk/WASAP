@@ -6815,6 +6815,8 @@ function renderDashboard(session) {
 		let fatigueRecords = getFatigueHistoryRecords();
 		let isRefreshingFatigueDashboard = false;
 		let selectedDetailType = "all";
+		let detailCurrentPage = 1;
+		const DETAIL_PAGE_SIZE = 20;
 
 		contentArea.innerHTML = `
 			<h2>Dashboard Fatigue</h2>
@@ -7149,14 +7151,30 @@ function renderDashboard(session) {
 				return;
 			}
 
+			const totalPages = Math.ceil(detailRecords.length / DETAIL_PAGE_SIZE);
+			if (detailCurrentPage > totalPages) {
+				detailCurrentPage = totalPages;
+			}
+
+			const start = (detailCurrentPage - 1) * DETAIL_PAGE_SIZE;
+			const pageRecords = detailRecords.slice(start, start + DETAIL_PAGE_SIZE);
+
 			const headerCells = config.columns.map((column) => `<th>${column}</th>`).join("");
-			const bodyRows = detailRecords
+			const bodyRows = pageRecords
 				.map((record) => {
 					const columns = config.buildRow(record);
 					const cells = columns.map((columnValue) => `<td>${columnValue}</td>`).join("");
 					return `<tr>${cells}</tr>`;
 				})
 				.join("");
+
+			const paginationHtml = totalPages > 1 ? `
+				<div class="fatigue-detail-pagination">
+					<button class="fatigue-detail-prev" ${detailCurrentPage <= 1 ? "disabled" : ""}>&#8592; Prev</button>
+					<span>Halaman ${detailCurrentPage} / ${totalPages} &nbsp;(${detailRecords.length} data)</span>
+					<button class="fatigue-detail-next" ${detailCurrentPage >= totalPages ? "disabled" : ""}>Next &#8594;</button>
+				</div>
+			` : "";
 
 			detailContainer.innerHTML = `
 				<div class="fatigue-dashboard-detail-card">
@@ -7169,8 +7187,24 @@ function renderDashboard(session) {
 							<tbody>${bodyRows}</tbody>
 						</table>
 					</div>
+					${paginationHtml}
 				</div>
 			`;
+
+			if (totalPages > 1) {
+				detailContainer.querySelector(".fatigue-detail-prev")?.addEventListener("click", () => {
+					if (detailCurrentPage > 1) {
+						detailCurrentPage -= 1;
+						renderFatigueDashboardDetail(filteredRecords);
+					}
+				});
+				detailContainer.querySelector(".fatigue-detail-next")?.addEventListener("click", () => {
+					if (detailCurrentPage < totalPages) {
+						detailCurrentPage += 1;
+						renderFatigueDashboardDetail(filteredRecords);
+					}
+				});
+			}
 		}
 
 		function updateActiveTriggerState() {
@@ -7327,12 +7361,13 @@ function renderDashboard(session) {
 		startDateInput.value = initialRange.start;
 		endDateInput.value = initialRange.end;
 
-		startDateInput.addEventListener("change", renderFatigueDashboardStats);
-		endDateInput.addEventListener("change", renderFatigueDashboardStats);
-		shiftInput.addEventListener("change", renderFatigueDashboardStats);
+		startDateInput.addEventListener("change", () => { detailCurrentPage = 1; renderFatigueDashboardStats(); });
+		endDateInput.addEventListener("change", () => { detailCurrentPage = 1; renderFatigueDashboardStats(); });
+		shiftInput.addEventListener("change", () => { detailCurrentPage = 1; renderFatigueDashboardStats(); });
 		triggerButtons.forEach((button) => {
 			button.addEventListener("click", () => {
 				selectedDetailType = String(button.dataset.detail || "all");
+				detailCurrentPage = 1;
 				renderFatigueDashboardStats();
 			});
 		});
