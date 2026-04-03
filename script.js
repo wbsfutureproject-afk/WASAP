@@ -6877,6 +6877,7 @@ function renderDashboard(session) {
 				</article>
 			</section>
 			<div id="fatigueDashboardDetail" class="fatigue-dashboard-detail"></div>
+			<div id="fatigueDashboardSummary" class="fatigue-dashboard-summary"></div>
 		`;
 
 		const startDateInput = document.getElementById("fatigueDashboardStartDate");
@@ -6892,6 +6893,7 @@ function renderDashboard(session) {
 		const dashboardRefreshBtn = document.getElementById("fatigueDashboardRefreshBtn");
 		const dashboardSyncInfo = document.getElementById("fatigueDashboardSyncInfo");
 		const detailContainer = document.getElementById("fatigueDashboardDetail");
+		const summaryContainer = document.getElementById("fatigueDashboardSummary");
 		const triggerButtons = contentArea.querySelectorAll(".fatigue-dashboard-trigger");
 
 		function escapeHtml(value) {
@@ -7177,6 +7179,93 @@ function renderDashboard(session) {
 			});
 		}
 
+		function renderRepetitiveSummaryTable(filteredRecords) {
+			if (!summaryContainer) {
+				return;
+			}
+
+			const summaryMap = new Map();
+			filteredRecords.forEach((record) => {
+				const name = String(record.nama || "").trim();
+				if (!name) {
+					return;
+				}
+
+				const normalizedName = name.toLowerCase();
+				const existing = summaryMap.get(normalizedName) || {
+					nama: name,
+					settinganUnit: String(record.settinganUnit || "").trim(),
+					totalInput: 0,
+					jumlahKurangTidur: 0,
+					jumlahMinumObat: 0,
+					jumlahMemilikiMasalah: 0,
+				};
+
+				existing.totalInput += 1;
+				if (!existing.settinganUnit && String(record.settinganUnit || "").trim()) {
+					existing.settinganUnit = String(record.settinganUnit || "").trim();
+				}
+				if (recordHasKurangTidur(record)) {
+					existing.jumlahKurangTidur += 1;
+				}
+				if (recordHasMinumObat(record)) {
+					existing.jumlahMinumObat += 1;
+				}
+				if (recordHasMasalah(record)) {
+					existing.jumlahMemilikiMasalah += 1;
+				}
+
+				summaryMap.set(normalizedName, existing);
+			});
+
+			const rows = Array.from(summaryMap.values()).sort((a, b) => b.totalInput - a.totalInput);
+			if (rows.length === 0) {
+				summaryContainer.innerHTML = `
+					<div class="fatigue-dashboard-detail-card">
+						<h3>Rekap Repetitif Nama (History Fatigue)</h3>
+						<p class="subtitle">Belum ada data yang bisa direkap pada filter aktif.</p>
+					</div>
+				`;
+				return;
+			}
+
+			const bodyRows = rows
+				.map(
+					(item) => `
+						<tr>
+							<td>${escapeHtml(item.nama)}</td>
+							<td>${escapeHtml(item.settinganUnit || "-")}</td>
+							<td>${item.totalInput}</td>
+							<td>${item.jumlahKurangTidur}</td>
+							<td>${item.jumlahMinumObat}</td>
+							<td>${item.jumlahMemilikiMasalah}</td>
+						</tr>
+					`,
+				)
+				.join("");
+
+			summaryContainer.innerHTML = `
+				<div class="fatigue-dashboard-detail-card">
+					<h3>Rekap Repetitif Nama (History Fatigue)</h3>
+					<div class="table-wrap">
+						<table class="data-table fatigue-dashboard-detail-table">
+							<thead>
+								<tr>
+									<th>Nama</th>
+									<th>Settingan Unit</th>
+									<th>Total Input</th>
+									<th>Kurang Jam Tidur</th>
+									<th>Meminum Obat</th>
+									<th>Ada Masalah</th>
+								</tr>
+							</thead>
+							<tbody>${bodyRows}</tbody>
+						</table>
+					</div>
+				</div>
+			`;
+		}
+
 		function renderFatigueDashboardStats() {
 			const filteredRecords = getFilteredRecords();
 			const stats = calculateStats(filteredRecords);
@@ -7190,6 +7279,7 @@ function renderDashboard(session) {
 			rangeInfoElement.textContent = `Date range aktif: ${formatDateKey(startDateInput.value)} s.d. ${formatDateKey(endDateInput.value)} | Shift: ${shiftInput.options[shiftInput.selectedIndex]?.text || "Semua Shift"}`;
 			updateActiveTriggerState();
 			renderFatigueDashboardDetail(filteredRecords);
+			renderRepetitiveSummaryTable(filteredRecords);
 		}
 
 		async function refreshFatigueDashboardFromServer() {

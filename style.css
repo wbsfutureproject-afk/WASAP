@@ -1594,6 +1594,10 @@ input[type="file"] {
 	margin-top: 14px;
 }
 
+.fatigue-dashboard-summary {
+	margin-top: 14px;
+}
+
 .fatigue-dashboard-detail-card {
 	border: 1px solid var(--border);
 	border-radius: 12px;
