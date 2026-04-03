@@ -2585,14 +2585,19 @@ function renderDashboard(session) {
 		`;
 	}
 
-	function renderAchievementKtaTable(records) {
+	const ACHIEVEMENT_DETAIL_PAGE_SIZE = 20;
+
+	function renderAchievementKtaTable(records, page) {
 		if (records.length === 0) {
 			return '<p class="subtitle">Belum ada detail temuan KTA.</p>';
 		}
 
-		const rows = records
-			.slice()
-			.reverse()
+		const totalPages = Math.ceil(records.length / ACHIEVEMENT_DETAIL_PAGE_SIZE);
+		const safePage = Math.min(Math.max(1, page || 1), totalPages);
+		const start = (safePage - 1) * ACHIEVEMENT_DETAIL_PAGE_SIZE;
+		const pageRecords = records.slice().reverse().slice(start, start + ACHIEVEMENT_DETAIL_PAGE_SIZE);
+
+		const rows = pageRecords
 			.map(
 				(item) => `
 					<tr>
@@ -2801,14 +2806,17 @@ function renderDashboard(session) {
 		`;
 	}
 
-	function renderAchievementTtaTable(records) {
+	function renderAchievementTtaTable(records, page) {
 		if (records.length === 0) {
 			return '<p class="subtitle">Belum ada detail temuan TTA.</p>';
 		}
 
-		const rows = records
-			.slice()
-			.reverse()
+		const totalPages = Math.ceil(records.length / ACHIEVEMENT_DETAIL_PAGE_SIZE);
+		const safePage = Math.min(Math.max(1, page || 1), totalPages);
+		const start = (safePage - 1) * ACHIEVEMENT_DETAIL_PAGE_SIZE;
+		const pageRecords = records.slice().reverse().slice(start, start + ACHIEVEMENT_DETAIL_PAGE_SIZE);
+
+		const rows = pageRecords
 			.map(
 				(item) => `
 					<tr>
@@ -3566,6 +3574,8 @@ function renderDashboard(session) {
 		let activeTtaStatusFilter = null;
 		let dateRangeStart = "";
 		let dateRangeEnd = "";
+		let ktaDetailPage = 1;
+		let ttaDetailPage = 1;
 
 		function buildAchievementExportFileName(type) {
 			const startPart = dateRangeStart || "all";
@@ -3632,8 +3642,14 @@ function renderDashboard(session) {
 				<section class="achievement-section">
 					<h3>Detail Temuan KTA</h3>
 					<div class="table-wrap">
-						${renderAchievementKtaTable(ktaRecords)}
+						${renderAchievementKtaTable(ktaRecords, ktaDetailPage)}
 					</div>
+					${ktaRecords.length > ACHIEVEMENT_DETAIL_PAGE_SIZE ? `
+					<div class="fatigue-detail-pagination">
+						<button id="ktaDetailPrev" class="fatigue-detail-prev" ${ktaDetailPage <= 1 ? "disabled" : ""}>&#8592; Prev</button>
+						<span>Halaman ${ktaDetailPage} / ${Math.ceil(ktaRecords.length / ACHIEVEMENT_DETAIL_PAGE_SIZE)} &nbsp;(${ktaRecords.length} data)</span>
+						<button id="ktaDetailNext" class="fatigue-detail-next" ${ktaDetailPage >= Math.ceil(ktaRecords.length / ACHIEVEMENT_DETAIL_PAGE_SIZE) ? "disabled" : ""}>Next &#8594;</button>
+					</div>` : ""}
 				</section>
 				<section class="achievement-section">
 					<h3>Target dan Pencapaian Gabungan KTA / TTA (OPERATOR)</h3>
@@ -3682,8 +3698,14 @@ function renderDashboard(session) {
 				<section class="achievement-section">
 					<h3>Detail Temuan TTA</h3>
 					<div class="table-wrap">
-						${renderAchievementTtaTable(ttaRecords)}
+						${renderAchievementTtaTable(ttaRecords, ttaDetailPage)}
 					</div>
+					${ttaRecords.length > ACHIEVEMENT_DETAIL_PAGE_SIZE ? `
+					<div class="fatigue-detail-pagination">
+						<button id="ttaDetailPrev" class="fatigue-detail-prev" ${ttaDetailPage <= 1 ? "disabled" : ""}>&#8592; Prev</button>
+						<span>Halaman ${ttaDetailPage} / ${Math.ceil(ttaRecords.length / ACHIEVEMENT_DETAIL_PAGE_SIZE)} &nbsp;(${ttaRecords.length} data)</span>
+						<button id="ttaDetailNext" class="fatigue-detail-next" ${ttaDetailPage >= Math.ceil(ttaRecords.length / ACHIEVEMENT_DETAIL_PAGE_SIZE) ? "disabled" : ""}>Next &#8594;</button>
+					</div>` : ""}
 				</section>
 				<section class="achievement-section">
 					<h3>Target dan Pencapaian Gabungan KTA / TTA (OPERATOR)</h3>
@@ -3760,6 +3782,8 @@ function renderDashboard(session) {
 				achievementDateError.textContent = "";
 				dateRangeStart = nextStart;
 				dateRangeEnd = nextEnd;
+				ktaDetailPage = 1;
+				ttaDetailPage = 1;
 				renderAdminAchievementView();
 			});
 
@@ -3767,6 +3791,8 @@ function renderDashboard(session) {
 				dateRangeStart = "";
 				dateRangeEnd = "";
 				achievementDateError.textContent = "";
+				ktaDetailPage = 1;
+				ttaDetailPage = 1;
 				renderAdminAchievementView();
 			});
 
@@ -3774,6 +3800,8 @@ function renderDashboard(session) {
 			tabs.forEach((button) => {
 				button.addEventListener("click", () => {
 					activeDashboard = button.dataset.achievementTab;
+					ktaDetailPage = 1;
+					ttaDetailPage = 1;
 					renderAdminAchievementView();
 				});
 			});
@@ -3783,9 +3811,11 @@ function renderDashboard(session) {
 				if (activeDashboard === "KTA") {
 					activeKtaFilter = null;
 					activeKtaStatusFilter = null;
+					ktaDetailPage = 1;
 				} else {
 					activeTtaFilter = null;
 					activeTtaStatusFilter = null;
+					ttaDetailPage = 1;
 				}
 				renderAdminAchievementView();
 			});
@@ -3802,11 +3832,13 @@ function renderDashboard(session) {
 							activeKtaFilter && activeKtaFilter.dimension === dimension && activeKtaFilter.value === value,
 						);
 						activeKtaFilter = isSame ? null : { dimension, value };
+						ktaDetailPage = 1;
 					} else {
 						const isSame = Boolean(
 							activeTtaFilter && activeTtaFilter.dimension === dimension && activeTtaFilter.value === value,
 						);
 						activeTtaFilter = isSame ? null : { dimension, value };
+						ttaDetailPage = 1;
 					}
 
 					renderAdminAchievementView();
@@ -3820,12 +3852,40 @@ function renderDashboard(session) {
 					const status = card.dataset.status;
 					if (dashboard === "KTA") {
 						activeKtaStatusFilter = activeKtaStatusFilter === status ? null : status;
+						ktaDetailPage = 1;
 					} else {
 						activeTtaStatusFilter = activeTtaStatusFilter === status ? null : status;
+						ttaDetailPage = 1;
 					}
 					renderAdminAchievementView();
 				});
 			});
+
+			const ktaDetailPrevBtn = document.getElementById("ktaDetailPrev");
+			const ktaDetailNextBtn = document.getElementById("ktaDetailNext");
+			if (ktaDetailPrevBtn) {
+				ktaDetailPrevBtn.addEventListener("click", () => {
+					if (ktaDetailPage > 1) { ktaDetailPage--; renderAdminAchievementView(); }
+				});
+			}
+			if (ktaDetailNextBtn) {
+				ktaDetailNextBtn.addEventListener("click", () => {
+					ktaDetailPage++; renderAdminAchievementView();
+				});
+			}
+
+			const ttaDetailPrevBtn = document.getElementById("ttaDetailPrev");
+			const ttaDetailNextBtn = document.getElementById("ttaDetailNext");
+			if (ttaDetailPrevBtn) {
+				ttaDetailPrevBtn.addEventListener("click", () => {
+					if (ttaDetailPage > 1) { ttaDetailPage--; renderAdminAchievementView(); }
+				});
+			}
+			if (ttaDetailNextBtn) {
+				ttaDetailNextBtn.addEventListener("click", () => {
+					ttaDetailPage++; renderAdminAchievementView();
+				});
+			}
 
 			const downloadKtaAchievementXlsx = document.getElementById("downloadKtaAchievementXlsx");
 			if (downloadKtaAchievementXlsx) {
