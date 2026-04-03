@@ -900,40 +900,12 @@ async function hydrateRecordsFromBackend() {
 
 async function syncFatigueHistoryFromBackend() {
 	const backendRecords = await fetchRecordsFromBackend(FATIGUE_HISTORY_SYNC_ENDPOINT);
-	const localRecords = readLocalArray(FATIGUE_HISTORY_KEY);
-
-	if (!Array.isArray(backendRecords)) {
-		if (localRecords.length > 0) {
-			await pushRecordsToBackend(FATIGUE_HISTORY_SYNC_ENDPOINT, localRecords);
-		}
-		return;
-	}
-
-	if (backendRecords.length === 0 && localRecords.length > 0) {
-		await pushRecordsToBackend(FATIGUE_HISTORY_SYNC_ENDPOINT, localRecords);
-		return;
-	}
-
-	writeLocalArray(FATIGUE_HISTORY_KEY, backendRecords);
+	await reconcileFatigueHistoryRecords(backendRecords);
 }
 
 async function syncLaporanFatigueTengahFromBackend() {
 	const backendRecords = await fetchRecordsFromBackend(LAPORAN_FATIGUE_TENGAH_SYNC_ENDPOINT);
-	const localRecords = getLaporanFatigueTengah();
-
-	if (!Array.isArray(backendRecords)) {
-		if (localRecords.length > 0) {
-			await pushRecordsToBackend(LAPORAN_FATIGUE_TENGAH_SYNC_ENDPOINT, localRecords);
-		}
-		return;
-	}
-
-	if (backendRecords.length === 0 && localRecords.length > 0) {
-		await pushRecordsToBackend(LAPORAN_FATIGUE_TENGAH_SYNC_ENDPOINT, localRecords);
-		return;
-	}
-
-	setLaporanFatigueTengah(backendRecords);
+	await reconcileLaporanFatigueTengahRecords(backendRecords);
 }
 
 function setSession(session) {
@@ -1394,6 +1366,70 @@ function mergeFatigueHistoryRecords(primaryRecords, secondaryRecords) {
 	return merged;
 }
 
+function getRecoveredFatigueHistoryRecords() {
+	const localRecords = getFatigueHistoryRecords();
+	if (localRecords.length > 0) {
+		return localRecords;
+	}
+
+	return getLatestBackupRecords(FATIGUE_HISTORY_KEY);
+}
+
+async function reconcileFatigueHistoryRecords(backendRecords, options = {}) {
+	const normalizedBackendRecords = Array.isArray(backendRecords) ? backendRecords : null;
+	const localRecords = getFatigueHistoryRecords();
+	const shouldAllowPush = options.allowPush !== false;
+
+	if (!normalizedBackendRecords) {
+		if (shouldAllowPush && localRecords.length > 0) {
+			await pushRecordsToBackend(FATIGUE_HISTORY_SYNC_ENDPOINT, localRecords);
+		}
+
+		return {
+			records: localRecords,
+			source: "local",
+			backendAvailable: false,
+		};
+	}
+
+	if (normalizedBackendRecords.length === 0) {
+		const recoveredRecords = getRecoveredFatigueHistoryRecords();
+		if (recoveredRecords.length > 0) {
+			writeLocalArray(FATIGUE_HISTORY_KEY, recoveredRecords);
+			if (shouldAllowPush) {
+				await pushRecordsToBackend(FATIGUE_HISTORY_SYNC_ENDPOINT, recoveredRecords);
+			}
+
+			return {
+				records: recoveredRecords,
+				source: localRecords.length > 0 ? "local" : "backup",
+				backendAvailable: true,
+				restoredFromEmptyBackend: true,
+			};
+		}
+
+		writeLocalArray(FATIGUE_HISTORY_KEY, []);
+		return {
+			records: [],
+			source: "backend",
+			backendAvailable: true,
+		};
+	}
+
+	const mergedRecords = mergeFatigueHistoryRecords(normalizedBackendRecords, localRecords);
+	writeLocalArray(FATIGUE_HISTORY_KEY, mergedRecords);
+
+	if (shouldAllowPush && mergedRecords.length > normalizedBackendRecords.length) {
+		await pushRecordsToBackend(FATIGUE_HISTORY_SYNC_ENDPOINT, mergedRecords);
+	}
+
+	return {
+		records: mergedRecords,
+		source: mergedRecords.length > normalizedBackendRecords.length ? "merged" : "backend",
+		backendAvailable: true,
+	};
+}
+
 function setFatigueHistoryRecords(records) {
 	const normalizedRecords = Array.isArray(records) ? records : [];
 	writeLocalArray(FATIGUE_HISTORY_KEY, normalizedRecords);
@@ -1449,32 +1485,119 @@ function setUnits(units) {
 }
 
 function getLaporanFatigueTengah() {
-	const raw = localStorage.getItem(LAPORAN_FATIGUE_TENGAH_KEY);
-	if (!raw) {
-		return [];
-	}
-
-	try {
-		const data = JSON.parse(raw);
-		return Array.isArray(data) ? data : [];
-	} catch (error) {
-		localStorage.removeItem(LAPORAN_FATIGUE_TENGAH_KEY);
-		return [];
-	}
+	return readLocalArray(LAPORAN_FATIGUE_TENGAH_KEY);
 }
 
 function setLaporanFatigueTengah(records) {
-	localStorage.setItem(LAPORAN_FATIGUE_TENGAH_KEY, JSON.stringify(Array.isArray(records) ? records : []));
+	writeLocalArray(LAPORAN_FATIGUE_TENGAH_KEY, Array.isArray(records) ? records : []);
 }
 
-async function saveLaporanFatigueTengah(records) {
+function createLaporanFatigueTengahRecordKey(record) {
+	const item = record && typeof record === "object" ? record : {};
+	return [
+		String(item.tanggalSubmit || "").trim(),
+		String(item.nik || "").trim(),
+		String(item.tanggal || "").trim(),
+		String(item.shift || "").trim(),
+		String(item.jamMulaiIstirahat || "").trim(),
+	].join("|");
+}
+
+function mergeLaporanFatigueTengahRecords(primaryRecords, secondaryRecords) {
+	const merged = [];
+	const seenKeys = new Set();
+
+	const appendRecord = (record) => {
+		if (!record || typeof record !== "object") {
+			return;
+		}
+
+		const key = createLaporanFatigueTengahRecordKey(record);
+		if (seenKeys.has(key)) {
+			return;
+		}
+
+		seenKeys.add(key);
+		merged.push(record);
+	};
+
+	(primaryRecords || []).forEach(appendRecord);
+	(secondaryRecords || []).forEach(appendRecord);
+
+	return merged;
+}
+
+async function reconcileLaporanFatigueTengahRecords(backendRecords, options = {}) {
+	const normalizedBackendRecords = Array.isArray(backendRecords) ? backendRecords : null;
+	const localRecords = getLaporanFatigueTengah();
+	const shouldAllowPush = options.allowPush !== false;
+
+	if (!normalizedBackendRecords) {
+		if (shouldAllowPush && localRecords.length > 0) {
+			await pushRecordsToBackend(LAPORAN_FATIGUE_TENGAH_SYNC_ENDPOINT, localRecords);
+		}
+
+		return {
+			records: localRecords,
+			source: "local",
+			backendAvailable: false,
+		};
+	}
+
+	if (normalizedBackendRecords.length === 0) {
+		if (localRecords.length > 0) {
+			setLaporanFatigueTengah(localRecords);
+			if (shouldAllowPush) {
+				await pushRecordsToBackend(LAPORAN_FATIGUE_TENGAH_SYNC_ENDPOINT, localRecords);
+			}
+
+			return {
+				records: localRecords,
+				source: "local",
+				backendAvailable: true,
+				restoredFromEmptyBackend: true,
+			};
+		}
+
+		setLaporanFatigueTengah([]);
+		return {
+			records: [],
+			source: "backend",
+			backendAvailable: true,
+		};
+	}
+
+	const mergedRecords = mergeLaporanFatigueTengahRecords(normalizedBackendRecords, localRecords);
+	setLaporanFatigueTengah(mergedRecords);
+
+	if (shouldAllowPush && mergedRecords.length > normalizedBackendRecords.length) {
+		await pushRecordsToBackend(LAPORAN_FATIGUE_TENGAH_SYNC_ENDPOINT, mergedRecords);
+	}
+
+	return {
+		records: mergedRecords,
+		source: mergedRecords.length > normalizedBackendRecords.length ? "merged" : "backend",
+		backendAvailable: true,
+	};
+}
+
+async function saveLaporanFatigueTengah(records, options = {}) {
 	const normalizedRecords = Array.isArray(records) ? records : [];
-	const isPushed = await pushRecordsToBackend(LAPORAN_FATIGUE_TENGAH_SYNC_ENDPOINT, normalizedRecords);
+	const mode = String(options.mode || "upsert").trim().toLowerCase();
+	const allowShrink = mode === "delete";
+	let nextRecords = normalizedRecords;
+
+	const backendRecords = await fetchRecordsFromBackend(LAPORAN_FATIGUE_TENGAH_SYNC_ENDPOINT);
+	if (Array.isArray(backendRecords) && !allowShrink) {
+		nextRecords = mergeLaporanFatigueTengahRecords(normalizedRecords, backendRecords);
+	}
+
+	const isPushed = await pushRecordsToBackend(LAPORAN_FATIGUE_TENGAH_SYNC_ENDPOINT, nextRecords);
 	if (!isPushed) {
 		return false;
 	}
 
-	setLaporanFatigueTengah(normalizedRecords);
+	setLaporanFatigueTengah(nextRecords);
 	return true;
 }
 
@@ -6506,7 +6629,7 @@ function renderDashboard(session) {
 						return;
 					}
 					const nextRecords = records.filter((_, recordIndex) => recordIndex !== index);
-					const isSaved = await saveLaporanFatigueTengah(nextRecords);
+					const isSaved = await saveLaporanFatigueTengah(nextRecords, { mode: "delete" });
 					if (!isSaved) {
 						lftError.textContent = "Gagal menghapus data karena sinkronisasi ke server gagal. Coba lagi.";
 						lftSuccess.textContent = "";
@@ -6572,14 +6695,23 @@ function renderDashboard(session) {
 			}
 
 			const backendRecords = await fetchRecordsFromBackend(LAPORAN_FATIGUE_TENGAH_SYNC_ENDPOINT);
-			if (Array.isArray(backendRecords)) {
-				records = backendRecords;
-				setLaporanFatigueTengah(backendRecords);
+			const syncResult = await reconcileLaporanFatigueTengahRecords(backendRecords);
+			if (syncResult.backendAvailable) {
+				records = syncResult.records;
 				renderLftHistory();
 				if (lftSyncInfo) {
-					lftSyncInfo.textContent = `Data tersinkron dari server (${records.length} data).`;
+					if (syncResult.source === "merged") {
+						lftSyncInfo.textContent = `Data server dimuat dan digabung dengan cache lokal (${records.length} data).`;
+					} else if (syncResult.source === "local" && syncResult.restoredFromEmptyBackend) {
+						lftSyncInfo.textContent = `Server kosong. Cache lokal dipulihkan kembali ke server (${records.length} data).`;
+					} else if (syncResult.source === "local") {
+						lftSyncInfo.textContent = `Server belum mengirim data. Cache lokal dipertahankan (${records.length} data).`;
+					} else {
+						lftSyncInfo.textContent = `Data tersinkron dari server (${records.length} data).`;
+					}
 				}
 			} else {
+				records = syncResult.records;
 				renderLftHistory();
 				if (lftSyncInfo) {
 					lftSyncInfo.textContent = "Gagal memuat data dari server. Menampilkan cache lokal.";
@@ -7296,14 +7428,25 @@ function renderDashboard(session) {
 			}
 
 			const backendRecords = await fetchRecordsFromBackend(FATIGUE_HISTORY_SYNC_ENDPOINT);
-			if (Array.isArray(backendRecords)) {
-				fatigueRecords = backendRecords;
-				writeLocalArray(FATIGUE_HISTORY_KEY, backendRecords);
+			const syncResult = await reconcileFatigueHistoryRecords(backendRecords);
+			if (syncResult.backendAvailable) {
+				fatigueRecords = syncResult.records;
 				renderFatigueHistoryTable();
 				if (fatigueSyncInfo) {
-					fatigueSyncInfo.textContent = `Data tersinkron dari server (${fatigueRecords.length} data).`;
+					if (syncResult.source === "merged") {
+						fatigueSyncInfo.textContent = `Data server dimuat dan digabung dengan cache lokal (${fatigueRecords.length} data).`;
+					} else if (syncResult.source === "local") {
+						fatigueSyncInfo.textContent = `Server belum mengirim data. Cache lokal dipertahankan (${fatigueRecords.length} data).`;
+					} else if (syncResult.source === "backup") {
+						fatigueSyncInfo.textContent = `Server kosong. Data dipulihkan dari backup lokal (${fatigueRecords.length} data).`;
+					} else if (syncResult.restoredFromEmptyBackend) {
+						fatigueSyncInfo.textContent = `Server kosong. Cache lokal dipulihkan kembali ke server (${fatigueRecords.length} data).`;
+					} else {
+						fatigueSyncInfo.textContent = `Data tersinkron dari server (${fatigueRecords.length} data).`;
+					}
 				}
 			} else {
+				fatigueRecords = syncResult.records;
 				renderFatigueHistoryTable();
 				if (fatigueSyncInfo) {
 					fatigueSyncInfo.textContent = "Gagal memuat data dari server. Menampilkan cache lokal.";
