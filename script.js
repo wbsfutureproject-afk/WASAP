@@ -79,6 +79,7 @@ const ROLE_MENUS = {
 		"Daftar Departemen",
 		"Daftar PIC",
 		"Daftar Unit",
+		"Dashboard Fatigue",
 		"History Fatigue",
 		"Laporan Fatigue Tengah Shift",
 		"Logout",
@@ -111,12 +112,13 @@ function getMenuItemsForSession(session) {
 
 	const logoutIndex = baseItems.indexOf("Logout");
 	if (logoutIndex === -1) {
+		baseItems.push("Dashboard Fatigue");
 		baseItems.push("History Fatigue");
 		baseItems.push("Laporan Fatigue Tengah Shift");
 		return baseItems;
 	}
 
-	baseItems.splice(logoutIndex, 0, "History Fatigue", "Laporan Fatigue Tengah Shift");
+	baseItems.splice(logoutIndex, 0, "Dashboard Fatigue", "History Fatigue", "Laporan Fatigue Tengah Shift");
 	return baseItems;
 }
 
@@ -6804,6 +6806,298 @@ function renderDashboard(session) {
 		refreshLaporanFatigueTengahFromServer({ showLoading: true });
 	}
 
+	function renderDashboardFatigueContent() {
+		if (!canAccessHistoryFatigue(session)) {
+			renderDefaultContent("Dashboard Fatigue");
+			return;
+		}
+
+		let fatigueRecords = getFatigueHistoryRecords();
+		let isRefreshingFatigueDashboard = false;
+
+		contentArea.innerHTML = `
+			<h2>Dashboard Fatigue</h2>
+			<p class="subtitle">Ringkasan data History Fatigue berdasarkan rentang tanggal aktif dan pilihan shift.</p>
+			<div class="inline-actions">
+				<button type="button" id="fatigueDashboardRefreshBtn" class="btn-small btn-edit">Muat Ulang dari Server</button>
+			</div>
+			<p id="fatigueDashboardSyncInfo" class="subtitle"></p>
+			<div class="fatigue-dashboard-filters form-grid">
+				<div class="field">
+					<label for="fatigueDashboardStartDate">Tanggal Mulai</label>
+					<input id="fatigueDashboardStartDate" type="date" />
+				</div>
+				<div class="field">
+					<label for="fatigueDashboardEndDate">Tanggal Selesai</label>
+					<input id="fatigueDashboardEndDate" type="date" />
+				</div>
+				<div class="field">
+					<label for="fatigueDashboardShift">Shift</label>
+					<select id="fatigueDashboardShift">
+						<option value="all">Semua Shift</option>
+						<option value="shift 1">Shift 1</option>
+						<option value="shift 2">Shift 2</option>
+					</select>
+				</div>
+			</div>
+			<p id="fatigueDashboardRangeInfo" class="subtitle"></p>
+			<p id="fatigueDashboardError" class="error"></p>
+			<section class="fatigue-dashboard-grid">
+				<article class="fatigue-dashboard-side">
+					<div class="fatigue-dashboard-metric-card">
+						<p class="fatigue-dashboard-metric-label">Total Input Kurang Tidur</p>
+						<p class="fatigue-dashboard-metric-value" id="fatigueDashboardKurangTidur">0</p>
+					</div>
+					<div class="fatigue-dashboard-metric-card">
+						<p class="fatigue-dashboard-metric-label">Total Memiliki Masalah</p>
+						<p class="fatigue-dashboard-metric-value" id="fatigueDashboardMasalah">0</p>
+					</div>
+				</article>
+				<article class="fatigue-dashboard-donut-panel">
+					<div class="fatigue-dashboard-donut" id="fatigueDashboardDonut">
+						<div class="fatigue-dashboard-donut-center">
+							<p class="fatigue-dashboard-total-label">Total History</p>
+							<p class="fatigue-dashboard-total-value" id="fatigueDashboardTotalHistory">0</p>
+						</div>
+					</div>
+					<div class="fatigue-dashboard-legend">
+						<span><i class="fatigue-dashboard-dot fatigue-dashboard-dot-kurang"></i>Kurang Tidur</span>
+						<span><i class="fatigue-dashboard-dot fatigue-dashboard-dot-masalah"></i>Memiliki Masalah</span>
+						<span><i class="fatigue-dashboard-dot fatigue-dashboard-dot-obat"></i>Minum Obat</span>
+					</div>
+				</article>
+				<article class="fatigue-dashboard-side">
+					<div class="fatigue-dashboard-metric-card">
+						<p class="fatigue-dashboard-metric-label">Total Meminum Obat</p>
+						<p class="fatigue-dashboard-metric-value" id="fatigueDashboardMinumObat">0</p>
+					</div>
+				</article>
+			</section>
+		`;
+
+		const startDateInput = document.getElementById("fatigueDashboardStartDate");
+		const endDateInput = document.getElementById("fatigueDashboardEndDate");
+		const shiftInput = document.getElementById("fatigueDashboardShift");
+		const totalHistoryElement = document.getElementById("fatigueDashboardTotalHistory");
+		const kurangTidurElement = document.getElementById("fatigueDashboardKurangTidur");
+		const masalahElement = document.getElementById("fatigueDashboardMasalah");
+		const minumObatElement = document.getElementById("fatigueDashboardMinumObat");
+		const donutElement = document.getElementById("fatigueDashboardDonut");
+		const rangeInfoElement = document.getElementById("fatigueDashboardRangeInfo");
+		const dashboardError = document.getElementById("fatigueDashboardError");
+		const dashboardRefreshBtn = document.getElementById("fatigueDashboardRefreshBtn");
+		const dashboardSyncInfo = document.getElementById("fatigueDashboardSyncInfo");
+
+		function getDateKey(dateValue) {
+			const rawDate = String(dateValue || "").trim();
+			if (!rawDate) {
+				return "";
+			}
+
+			if (/^\d{4}-\d{2}-\d{2}$/.test(rawDate)) {
+				return rawDate;
+			}
+
+			if (/^\d{2}-\d{2}-\d{4}$/.test(rawDate)) {
+				const [day, month, year] = rawDate.split("-");
+				return `${year}-${month}-${day}`;
+			}
+
+			if (/^\d{2}\/\d{2}\/\d{4}$/.test(rawDate)) {
+				const [day, month, year] = rawDate.split("/");
+				return `${year}-${month}-${day}`;
+			}
+
+			const parsedDate = new Date(rawDate);
+			if (Number.isNaN(parsedDate.getTime())) {
+				return "";
+			}
+
+			return parsedDate.toISOString().slice(0, 10);
+		}
+
+		function formatDateKey(dateKey) {
+			const normalized = getDateKey(dateKey);
+			if (!normalized) {
+				return "-";
+			}
+
+			const [year, month, day] = normalized.split("-");
+			return `${day}-${month}-${year}`;
+		}
+
+		function normalizeShift(value) {
+			return String(value || "").trim().toLowerCase().replace(/\s+/g, " ");
+		}
+
+		function parseDeficitMinutes(deficitText) {
+			const text = String(deficitText || "").trim();
+			const matches = text.match(/(\d+)\s*jam\s*(\d+)\s*menit/i);
+			if (!matches) {
+				return 0;
+			}
+
+			const hours = Number(matches[1]);
+			const minutes = Number(matches[2]);
+			if (!Number.isFinite(hours) || !Number.isFinite(minutes)) {
+				return 0;
+			}
+
+			return (hours * 60) + minutes;
+		}
+
+		function buildDonutBackground(stats) {
+			const indicatorTotal = stats.kurangTidur + stats.memilikiMasalah + stats.minumObat;
+
+			if (stats.total === 0 || indicatorTotal === 0) {
+				return "conic-gradient(#d1d5db 0 360deg)";
+			}
+
+			const kurangPercent = (stats.kurangTidur / indicatorTotal) * 100;
+			const masalahPercent = (stats.memilikiMasalah / indicatorTotal) * 100;
+			const obatPercent = Math.max(0, 100 - kurangPercent - masalahPercent);
+
+			const firstEnd = kurangPercent;
+			const secondEnd = kurangPercent + masalahPercent;
+
+			return `conic-gradient(
+				#0b5ed7 0 ${firstEnd}%,
+				#f97316 ${firstEnd}% ${secondEnd}%,
+				#16a34a ${secondEnd}% ${secondEnd + obatPercent}%
+			)`;
+		}
+
+		function getInitialDateRange(records) {
+			const dateKeys = records
+				.map((record) => getDateKey(record.tanggal))
+				.filter(Boolean)
+				.sort();
+
+			if (dateKeys.length === 0) {
+				const today = new Date().toISOString().slice(0, 10);
+				return {
+					start: today,
+					end: today,
+				};
+			}
+
+			return {
+				start: dateKeys[0],
+				end: dateKeys[dateKeys.length - 1],
+			};
+		}
+
+		function getFilteredRecords() {
+			const startDate = getDateKey(startDateInput.value);
+			const endDate = getDateKey(endDateInput.value);
+			const selectedShift = normalizeShift(shiftInput.value);
+
+			if (!startDate || !endDate) {
+				dashboardError.textContent = "Rentang tanggal wajib diisi.";
+				return [];
+			}
+
+			if (startDate > endDate) {
+				dashboardError.textContent = "Tanggal mulai tidak boleh lebih besar dari tanggal selesai.";
+				return [];
+			}
+
+			dashboardError.textContent = "";
+			return fatigueRecords.filter((record) => {
+				const recordDate = getDateKey(record.tanggal);
+				if (!recordDate) {
+					return false;
+				}
+
+				if (recordDate < startDate || recordDate > endDate) {
+					return false;
+				}
+
+				if (selectedShift === "all") {
+					return true;
+				}
+
+				return normalizeShift(record.shift) === selectedShift;
+			});
+		}
+
+		function calculateStats(records) {
+			const kurangTidur = records.filter((record) => parseDeficitMinutes(record.hasilKekuranganJamTidur) > 0).length;
+			const memilikiMasalah = records.filter((record) => String(record.adaMasalah || "").trim().toUpperCase() === "YA").length;
+			const minumObat = records.filter((record) => String(record.minumObat || "").trim().toUpperCase() === "YA").length;
+
+			return {
+				total: records.length,
+				kurangTidur,
+				memilikiMasalah,
+				minumObat,
+			};
+		}
+
+		function renderFatigueDashboardStats() {
+			const filteredRecords = getFilteredRecords();
+			const stats = calculateStats(filteredRecords);
+
+			totalHistoryElement.textContent = String(stats.total);
+			kurangTidurElement.textContent = String(stats.kurangTidur);
+			masalahElement.textContent = String(stats.memilikiMasalah);
+			minumObatElement.textContent = String(stats.minumObat);
+			donutElement.style.background = buildDonutBackground(stats);
+
+			rangeInfoElement.textContent = `Date range aktif: ${formatDateKey(startDateInput.value)} s.d. ${formatDateKey(endDateInput.value)} | Shift: ${shiftInput.options[shiftInput.selectedIndex]?.text || "Semua Shift"}`;
+		}
+
+		async function refreshFatigueDashboardFromServer() {
+			if (isRefreshingFatigueDashboard) {
+				return;
+			}
+
+			isRefreshingFatigueDashboard = true;
+			if (dashboardRefreshBtn) {
+				dashboardRefreshBtn.disabled = true;
+			}
+
+			const backendRecords = await fetchRecordsFromBackend(FATIGUE_HISTORY_SYNC_ENDPOINT);
+			const syncResult = await reconcileFatigueHistoryRecords(backendRecords);
+			fatigueRecords = syncResult.records;
+
+			if (dashboardSyncInfo) {
+				if (syncResult.source === "merged") {
+					dashboardSyncInfo.textContent = `Data server dimuat dan digabung dengan cache lokal (${fatigueRecords.length} data).`;
+				} else if (syncResult.source === "local" && syncResult.restoredFromEmptyBackend) {
+					dashboardSyncInfo.textContent = `Server kosong. Cache lokal dipulihkan kembali ke server (${fatigueRecords.length} data).`;
+				} else if (syncResult.source === "local") {
+					dashboardSyncInfo.textContent = `Server belum mengirim data. Cache lokal dipertahankan (${fatigueRecords.length} data).`;
+				} else {
+					dashboardSyncInfo.textContent = `Data tersinkron dari server (${fatigueRecords.length} data).`;
+				}
+			}
+
+			renderFatigueDashboardStats();
+
+			if (dashboardRefreshBtn) {
+				dashboardRefreshBtn.disabled = false;
+			}
+			isRefreshingFatigueDashboard = false;
+		}
+
+		const initialRange = getInitialDateRange(fatigueRecords);
+		startDateInput.value = initialRange.start;
+		endDateInput.value = initialRange.end;
+
+		startDateInput.addEventListener("change", renderFatigueDashboardStats);
+		endDateInput.addEventListener("change", renderFatigueDashboardStats);
+		shiftInput.addEventListener("change", renderFatigueDashboardStats);
+		if (dashboardRefreshBtn) {
+			dashboardRefreshBtn.addEventListener("click", async () => {
+				await refreshFatigueDashboardFromServer();
+			});
+		}
+
+		renderFatigueDashboardStats();
+		refreshFatigueDashboardFromServer();
+	}
+
 	function renderHistoryFatigueContent() {
 		if (!canAccessHistoryFatigue(session)) {
 			renderDefaultContent("History Fatigue");
@@ -8030,6 +8324,11 @@ function renderDashboard(session) {
 
 		if (menuName === "Daftar Unit") {
 			renderUnitContent();
+			return;
+		}
+
+		if (menuName === "Dashboard Fatigue") {
+			renderDashboardFatigueContent();
 			return;
 		}
 
