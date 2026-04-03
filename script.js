@@ -7220,12 +7220,15 @@ function renderDashboard(session) {
 
 			const rows = Array.from(summaryMap.values()).sort((a, b) => b.totalInput - a.totalInput);
 			if (rows.length === 0) {
-				summaryContainer.innerHTML = `
-					<div class="fatigue-dashboard-detail-card">
-						<h3>Rekap Repetitif Nama (History Fatigue)</h3>
-						<p class="subtitle">Belum ada data yang bisa direkap pada filter aktif.</p>
-					</div>
-				`;
+				summaryContainer.innerHTML = "";
+				return;
+			}
+
+			const hasRepetitive = rows.some(
+				(r) => r.jumlahKurangTidur > 1 || r.jumlahMinumObat > 1 || r.jumlahMemilikiMasalah > 1,
+			);
+			if (!hasRepetitive) {
+				summaryContainer.innerHTML = "";
 				return;
 			}
 
