@@ -7232,7 +7232,11 @@ function renderDashboard(session) {
 				return;
 			}
 
-			const bodyRows = rows
+			const repetitiveRows = rows.filter(
+				(r) => r.jumlahKurangTidur > 1 || r.jumlahMinumObat > 1 || r.jumlahMemilikiMasalah > 1,
+			);
+
+			const bodyRows = repetitiveRows
 				.map(
 					(item) => `
 						<tr>
