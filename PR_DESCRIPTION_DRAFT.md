@@ -2,7 +2,7 @@
 
 PR ini menambahkan modul operasional baru untuk fatigue: pengelolaan daftar unit, form laporan fatigue tengah shift, sinkronisasi data otomatis berdasarkan NIK dari History Fatigue, serta export Excel untuk kebutuhan rekap.
 
-Selain penambahan fitur, PR ini juga memperbaiki alur sinkronisasi field dan bug runtime yang sempat membuat data belum tampil setelah submit.
+Selain penambahan fitur, PR ini juga memperbaiki alur sinkronisasi field, bug runtime yang sempat membuat data belum tampil setelah submit, serta bug sinkronisasi yang dapat membuat history hilang ketika backend mengembalikan data kosong.
 
 ## What Changed
 
@@ -62,6 +62,8 @@ Selain penambahan fitur, PR ini juga memperbaiki alur sinkronisasi field dan bug
 - Memperbaiki event binding sinkronisasi NIK yang sebelumnya tidak terpanggil.
 - Memperbaiki bug runtime akibat fungsi `setShiftReadonly` belum terdefinisi, yang menyebabkan riwayat tidak tampil setelah submit.
 - Setelah perbaikan, data riwayat muncul langsung setelah submit.
+- Memperbaiki sinkronisasi `History Fatigue` agar cache lokal tidak langsung tertimpa saat backend kosong, termasuk pemulihan dari backup lokal dan merge data lokal yang belum tersinkron.
+- Memperbaiki sinkronisasi `Laporan Fatigue Tengah Shift` agar refresh/startup tidak menghapus data lokal saat backend belum sinkron.
 
 ### Styling
 
@@ -73,6 +75,7 @@ Selain penambahan fitur, PR ini juga memperbaiki alur sinkronisasi field dan bug
 - ✅ Submit data `Laporan Fatigue Tengah Shift` berhasil dan riwayat langsung tampil.
 - ✅ Sinkronisasi NIK otomatis mengisi field terkait termasuk Shift.
 - ✅ Export laporan ke format `.xlsx` berhasil.
+- ✅ Refresh/startup tidak lagi menghilangkan riwayat fatigue saat backend kosong atau belum sinkron.
 
 ## Reviewer Focus
 
@@ -80,4 +83,5 @@ Selain penambahan fitur, PR ini juga memperbaiki alur sinkronisasi field dan bug
 - Verifikasi sinkronisasi NIK di `Laporan Fatigue Tengah Shift`.
 - Verifikasi Shift lock/unlock saat sinkronisasi berhasil/gagal.
 - Verifikasi data muncul di riwayat setelah submit, termasuk mode edit dan hapus.
+- Verifikasi refresh/startup saat backend kosong tidak menghapus cache lokal pada `History Fatigue` dan `Laporan Fatigue Tengah Shift`.
 - Verifikasi export `.xlsx` menghasilkan kolom data yang lengkap.
