@@ -12,6 +12,7 @@ const FATIGUE_HISTORY_KEY = "she_wbs_fatigue_history";
 const FATIGUE_HISTORY_BACKUP_KEY = "she_wbs_fatigue_history_backup";
 const UNITS_KEY = "she_wbs_units";
 const LAPORAN_FATIGUE_TENGAH_KEY = "she_wbs_laporan_fatigue_tengah";
+const LAPORAN_FATIGUE_TENGAH_BACKUP_KEY = "she_wbs_laporan_fatigue_tengah_backup";
 const BACKEND_HEALTH_ENDPOINT = "/api/health";
 const KTA_SYNC_ENDPOINT = "/api/kta";
 const TTA_SYNC_ENDPOINT = "/api/tta";
@@ -471,6 +472,10 @@ function getBackupStorageKey(localStorageKey) {
 
 	if (localStorageKey === FATIGUE_HISTORY_KEY) {
 		return FATIGUE_HISTORY_BACKUP_KEY;
+	}
+
+	if (localStorageKey === LAPORAN_FATIGUE_TENGAH_KEY) {
+		return LAPORAN_FATIGUE_TENGAH_BACKUP_KEY;
 	}
 
 	return "";
