@@ -24,6 +24,8 @@ services:
         value: /var/data
       - key: STORAGE_FILE_PATH
         value: /var/data/storage.json
+      - key: RENDER_EXTERNAL_URL
+        value: https://wasap-5pzb.onrender.com
       - key: CORS_ALLOWED_ORIGINS
         value: https://wasap-kappa.vercel.app,https://*.vercel.app
     disk:

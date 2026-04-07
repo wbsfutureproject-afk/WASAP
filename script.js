@@ -378,26 +378,45 @@ async function updateBackendStatus() {
 	}
 
 	statusElement.textContent = "Backend: checking...";
-	statusElement.classList.remove("backend-status-online", "backend-status-offline");
+	statusElement.classList.remove("backend-status-online", "backend-status-offline", "backend-status-starting");
 
-	try {
-		const response = await fetch(toApiUrl(BACKEND_HEALTH_ENDPOINT), {
-			method: "GET",
-			headers: {
-				Accept: "application/json",
-			},
-		});
+	const MAX_RETRIES = 3;
+	const RETRY_DELAYS = [0, 10000, 20000]; // langsung, 10 detik, 20 detik
 
-		if (!response.ok) {
-			throw new Error("Health check failed");
+	for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+		if (attempt > 0) {
+			statusElement.textContent = `Backend: starting... (percobaan ${attempt + 1}/${MAX_RETRIES})`;
+			statusElement.classList.remove("backend-status-online", "backend-status-offline");
+			statusElement.classList.add("backend-status-starting");
+			await new Promise((r) => setTimeout(r, RETRY_DELAYS[attempt]));
 		}
 
-		statusElement.textContent = "Backend: online";
-		statusElement.classList.add("backend-status-online");
-	} catch (error) {
-		statusElement.textContent = "Backend: offline";
-		statusElement.classList.add("backend-status-offline");
+		try {
+			const controller = new AbortController();
+			const timeout = setTimeout(() => controller.abort(), 15000);
+			const response = await fetch(toApiUrl(BACKEND_HEALTH_ENDPOINT), {
+				method: "GET",
+				headers: { Accept: "application/json" },
+				signal: controller.signal,
+			});
+			clearTimeout(timeout);
+
+			if (!response.ok) {
+				throw new Error("Health check failed");
+			}
+
+			statusElement.textContent = "Backend: online";
+			statusElement.classList.remove("backend-status-starting", "backend-status-offline");
+			statusElement.classList.add("backend-status-online");
+			return;
+		} catch (error) {
+			// lanjut retry
+		}
 	}
+
+	statusElement.textContent = "Backend: offline";
+	statusElement.classList.remove("backend-status-starting");
+	statusElement.classList.add("backend-status-offline");
 }
 
 async function fetchRecordsFromBackend(endpoint) {

@@ -1054,4 +1054,20 @@ app.listen(port, host, () => {
 		console.log(`[storage] File storage aktif (${storageFilePath}).`);
 	}
 	console.log(`SHE WBS running on http://${host}:${port}`);
+
+	// Keep-alive: ping diri sendiri setiap 14 menit agar Render free tier tidak spin down
+	const selfUrl = process.env.RENDER_EXTERNAL_URL || `http://${host}:${port}`;
+	setInterval(async () => {
+		try {
+			const { default: http } = await import(selfUrl.startsWith("https") ? "https" : "http");
+			http.get(`${selfUrl}/api/health`, (res) => {
+				res.resume();
+				console.log(`[keep-alive] ping ${res.statusCode}`);
+			}).on("error", (err) => {
+				console.warn(`[keep-alive] ping gagal: ${err.message}`);
+			});
+		} catch (err) {
+			console.warn(`[keep-alive] error: ${err.message}`);
+		}
+	}, 14 * 60 * 1000);
 });
