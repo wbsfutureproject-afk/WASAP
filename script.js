@@ -839,11 +839,16 @@ async function pushMasterToBackend(masterData) {
 			body: JSON.stringify({ data: masterData }),
 		});
 
-		if (!response.ok && response.status === 401) {
-			handleUnauthorizedResponse();
+		if (!response.ok) {
+			if (response.status === 401) {
+				handleUnauthorizedResponse();
+			}
+			return false;
 		}
+
+		return true;
 	} catch (error) {
-		return;
+		return false;
 	}
 }
 
@@ -860,6 +865,7 @@ function getLocalMasterData() {
 async function hydrateMasterFromBackend() {
 	const backendMaster = await fetchMasterFromBackend();
 	const localMaster = getLocalMasterData();
+	const normalizedLocalLeaveSettings = normalizeLeaveSettings(localMaster.leaveSettings);
 	const hasLocalUnits = localMaster.units.length > 0;
 	const hasBackendUnits = Boolean(backendMaster && backendMaster.units.length > 0);
 
@@ -871,19 +877,23 @@ async function hydrateMasterFromBackend() {
 			backendMaster.leaveSettings.length > 0 ||
 			backendMaster.units.length > 0)
 	) {
+		const mergedLeaveSettings = mergeLeaveSettings(backendMaster.leaveSettings, normalizedLocalLeaveSettings);
+		const shouldPushMergedLeaveSettings = mergedLeaveSettings.length > backendMaster.leaveSettings.length;
+		const nextUnits = hasBackendUnits ? backendMaster.units : localMaster.units;
+
 		writeLocalArray(USER_MASTER_KEY, backendMaster.users);
 		writeLocalArray(DEPARTMENTS_KEY, backendMaster.departments);
 		writeLocalArray(PICS_KEY, backendMaster.pics);
-		writeLocalArray(LEAVE_SETTINGS_KEY, backendMaster.leaveSettings);
-		writeLocalArray(UNITS_KEY, hasBackendUnits ? backendMaster.units : localMaster.units);
+		writeLocalArray(LEAVE_SETTINGS_KEY, mergedLeaveSettings);
+		writeLocalArray(UNITS_KEY, nextUnits);
 
-		if (!hasBackendUnits && hasLocalUnits) {
+		if (!hasBackendUnits && hasLocalUnits || shouldPushMergedLeaveSettings) {
 			await pushMasterToBackend({
 				users: backendMaster.users,
 				departments: backendMaster.departments,
 				pics: backendMaster.pics,
-				leaveSettings: backendMaster.leaveSettings,
-				units: localMaster.units,
+				leaveSettings: mergedLeaveSettings,
+				units: nextUnits,
 			});
 		}
 		return;
@@ -893,10 +903,16 @@ async function hydrateMasterFromBackend() {
 		localMaster.users.length > 0 ||
 		localMaster.departments.length > 0 ||
 		localMaster.pics.length > 0 ||
-		localMaster.leaveSettings.length > 0 ||
+		normalizedLocalLeaveSettings.length > 0 ||
 		localMaster.units.length > 0
 	) {
-		await pushMasterToBackend(localMaster);
+		await pushMasterToBackend({
+			users: localMaster.users,
+			departments: localMaster.departments,
+			pics: localMaster.pics,
+			leaveSettings: normalizedLocalLeaveSettings,
+			units: localMaster.units,
+		});
 	}
 }
 
@@ -1110,6 +1126,13 @@ function normalizeLeaveSettings(rawLeaveSettings) {
 		.sort((a, b) => a.username.localeCompare(b.username));
 }
 
+function mergeLeaveSettings(primaryLeaveSettings, secondaryLeaveSettings) {
+	return normalizeLeaveSettings([
+		...(Array.isArray(primaryLeaveSettings) ? primaryLeaveSettings : []),
+		...(Array.isArray(secondaryLeaveSettings) ? secondaryLeaveSettings : []),
+	]);
+}
+
 function getLeaveSettings() {
 	const raw = localStorage.getItem(LEAVE_SETTINGS_KEY);
 	if (!raw) {
@@ -1130,15 +1153,18 @@ function getLeaveSettings() {
 	}
 }
 
-function setLeaveSettings(leaveSettings) {
+async function setLeaveSettings(leaveSettings) {
 	const normalized = normalizeLeaveSettings(leaveSettings);
 	localStorage.setItem(LEAVE_SETTINGS_KEY, JSON.stringify(normalized));
-	pushMasterToBackend({
+	const isPushed = await pushMasterToBackend({
 		users: getManagedUsers(),
 		departments: getDepartments(),
 		pics: getPics(),
 		leaveSettings: normalized,
+		units: getUnits(),
 	});
+
+	return isPushed;
 }
 
 function getLeaveDatesByUsername(username) {
@@ -5716,7 +5742,13 @@ function renderDashboard(session) {
 					.filter((item) => item.dates.length > 0)
 					.sort((a, b) => a.username.localeCompare(b.username));
 
-				setLeaveSettings(normalizedPayload);
+				const isSaved = await setLeaveSettings(normalizedPayload);
+				if (!isSaved) {
+					leaveError.textContent = "Pengaturan cuti tersimpan di perangkat ini, tetapi gagal sinkron ke server. Coba simpan lagi saat koneksi stabil.";
+					leaveSuccess.textContent = "";
+					return;
+				}
+
 				leaveSuccess.textContent = "Pengaturan cuti berhasil disimpan.";
 			});
 		});
@@ -6873,6 +6905,7 @@ function renderDashboard(session) {
 		}
 
 		let fatigueRecords = getFatigueHistoryRecords();
+		let laporanFatigueTengahRecords = getLaporanFatigueTengah();
 		let isRefreshingFatigueDashboard = false;
 		let selectedDetailType = "all";
 		let detailCurrentPage = 1;
@@ -6880,7 +6913,7 @@ function renderDashboard(session) {
 
 		contentArea.innerHTML = `
 			<h2>Dashboard Fatigue</h2>
-			<p class="subtitle">Ringkasan data History Fatigue berdasarkan rentang tanggal aktif dan pilihan shift.</p>
+			<p class="subtitle">Ringkasan data History Fatigue serta grafik Laporan Fatigue Tengah Shift berdasarkan rentang tanggal aktif dan pilihan shift.</p>
 			<div class="inline-actions">
 				<button type="button" id="fatigueDashboardRefreshBtn" class="btn-small btn-edit">Muat Ulang dari Server</button>
 			</div>
@@ -6938,6 +6971,7 @@ function renderDashboard(session) {
 					</button>
 				</article>
 			</section>
+			<div id="fatigueDashboardLftChart" class="fatigue-dashboard-lft-chart"></div>
 			<div id="fatigueDashboardDetail" class="fatigue-dashboard-detail"></div>
 			<div id="fatigueDashboardSummary" class="fatigue-dashboard-summary"></div>
 		`;
@@ -6954,6 +6988,7 @@ function renderDashboard(session) {
 		const dashboardError = document.getElementById("fatigueDashboardError");
 		const dashboardRefreshBtn = document.getElementById("fatigueDashboardRefreshBtn");
 		const dashboardSyncInfo = document.getElementById("fatigueDashboardSyncInfo");
+		const laporanChartContainer = document.getElementById("fatigueDashboardLftChart");
 		const detailContainer = document.getElementById("fatigueDashboardDetail");
 		const summaryContainer = document.getElementById("fatigueDashboardSummary");
 		const triggerButtons = contentArea.querySelectorAll(".fatigue-dashboard-trigger");
@@ -7066,23 +7101,62 @@ function renderDashboard(session) {
 			};
 		}
 
-		function getFilteredRecords() {
+		function getActiveDashboardFilters() {
 			const startDate = getDateKey(startDateInput.value);
 			const endDate = getDateKey(endDateInput.value);
 			const selectedShift = normalizeShift(shiftInput.value);
 
 			if (!startDate || !endDate) {
 				dashboardError.textContent = "Rentang tanggal wajib diisi.";
-				return [];
+				return null;
 			}
 
 			if (startDate > endDate) {
 				dashboardError.textContent = "Tanggal mulai tidak boleh lebih besar dari tanggal selesai.";
-				return [];
+				return null;
 			}
 
 			dashboardError.textContent = "";
+			return {
+				startDate,
+				endDate,
+				selectedShift,
+			};
+		}
+
+		function getFilteredRecords() {
+			const activeFilters = getActiveDashboardFilters();
+			if (!activeFilters) {
+				return [];
+			}
+
 			return fatigueRecords.filter((record) => {
+				const { startDate, endDate, selectedShift } = activeFilters;
+				const recordDate = getDateKey(record.tanggal);
+				if (!recordDate) {
+					return false;
+				}
+
+				if (recordDate < startDate || recordDate > endDate) {
+					return false;
+				}
+
+				if (selectedShift === "all") {
+					return true;
+				}
+
+				return normalizeShift(record.shift) === selectedShift;
+			});
+		}
+
+		function getFilteredLaporanFatigueTengahRecords() {
+			const activeFilters = getActiveDashboardFilters();
+			if (!activeFilters) {
+				return [];
+			}
+
+			return laporanFatigueTengahRecords.filter((record) => {
+				const { startDate, endDate, selectedShift } = activeFilters;
 				const recordDate = getDateKey(record.tanggal);
 				if (!recordDate) {
 					return false;
@@ -7111,6 +7185,149 @@ function renderDashboard(session) {
 				memilikiMasalah,
 				minumObat,
 			};
+		}
+
+		function calculateLaporanFatigueTengahStats(records) {
+			const shiftSatu = records.filter((record) => normalizeShift(record.shift) === "shift 1").length;
+			const shiftDua = records.filter((record) => normalizeShift(record.shift) === "shift 2").length;
+			const kembaliOperasi = records.filter((record) => String(record.jamMulaiOperasiKembali || "").trim()).length;
+
+			return {
+				total: records.length,
+				shiftSatu,
+				shiftDua,
+				kembaliOperasi,
+				belumKembaliOperasi: Math.max(0, records.length - kembaliOperasi),
+			};
+		}
+
+		function buildLaporanFatigueTengahSeries(records) {
+			const grouped = new Map();
+
+			records.forEach((record) => {
+				const dateKey = getDateKey(record.tanggal);
+				if (!dateKey) {
+					return;
+				}
+
+				const current = grouped.get(dateKey) || {
+					dateKey,
+					total: 0,
+					shiftSatu: 0,
+					shiftDua: 0,
+					kembaliOperasi: 0,
+				};
+
+				current.total += 1;
+				if (normalizeShift(record.shift) === "shift 1") {
+					current.shiftSatu += 1;
+				} else if (normalizeShift(record.shift) === "shift 2") {
+					current.shiftDua += 1;
+				}
+				if (String(record.jamMulaiOperasiKembali || "").trim()) {
+					current.kembaliOperasi += 1;
+				}
+
+				grouped.set(dateKey, current);
+			});
+
+			return Array.from(grouped.values()).sort((left, right) => left.dateKey.localeCompare(right.dateKey));
+		}
+
+		function renderLaporanFatigueTengahChart(filteredRecords) {
+			if (!laporanChartContainer) {
+				return;
+			}
+
+			const stats = calculateLaporanFatigueTengahStats(filteredRecords);
+			const series = buildLaporanFatigueTengahSeries(filteredRecords);
+			const maxTotal = series.reduce((highest, item) => Math.max(highest, item.total), 0) || 1;
+			const shiftLabel = shiftInput.options[shiftInput.selectedIndex]?.text || "Semua Shift";
+
+			if (filteredRecords.length === 0) {
+				laporanChartContainer.innerHTML = `
+					<div class="fatigue-dashboard-detail-card fatigue-dashboard-lft-card">
+						<h3>Grafik Laporan Fatigue Tengah Shift</h3>
+						<p class="subtitle">Belum ada data Laporan Fatigue Tengah Shift pada filter aktif.</p>
+					</div>
+				`;
+				return;
+			}
+
+			const legendHtml = shiftInput.value === "all"
+				? `
+					<div class="fatigue-dashboard-lft-legend">
+						<span><i class="fatigue-dashboard-lft-dot fatigue-dashboard-lft-dot-shift1"></i>Shift 1</span>
+						<span><i class="fatigue-dashboard-lft-dot fatigue-dashboard-lft-dot-shift2"></i>Shift 2</span>
+					</div>
+				`
+				: `
+					<div class="fatigue-dashboard-lft-legend">
+						<span><i class="fatigue-dashboard-lft-dot fatigue-dashboard-lft-dot-total"></i>${escapeHtml(shiftLabel)}</span>
+					</div>
+				`;
+
+			const barsHtml = series
+				.map((item) => {
+					const shiftSatuWidth = (item.shiftSatu / maxTotal) * 100;
+					const shiftDuaWidth = (item.shiftDua / maxTotal) * 100;
+					const totalWidth = (item.total / maxTotal) * 100;
+					const barHtml = shiftInput.value === "all"
+						? `
+							<div class="fatigue-dashboard-lft-bar-track">
+								<div class="fatigue-dashboard-lft-bar-segment fatigue-dashboard-lft-bar-shift1" style="width: ${shiftSatuWidth}%"></div>
+								<div class="fatigue-dashboard-lft-bar-segment fatigue-dashboard-lft-bar-shift2" style="width: ${shiftDuaWidth}%"></div>
+							</div>
+						`
+						: `
+							<div class="fatigue-dashboard-lft-bar-track">
+								<div class="fatigue-dashboard-lft-bar-segment fatigue-dashboard-lft-bar-total" style="width: ${totalWidth}%"></div>
+							</div>
+						`;
+
+					return `
+						<div class="fatigue-dashboard-lft-row">
+							<div class="fatigue-dashboard-lft-date">${formatDateKey(item.dateKey)}</div>
+							<div>
+								${barHtml}
+								<p class="fatigue-dashboard-lft-row-meta">${item.kembaliOperasi} kembali operasi, ${Math.max(0, item.total - item.kembaliOperasi)} belum isi jam operasi kembali</p>
+							</div>
+							<div class="fatigue-dashboard-lft-count">${item.total} laporan</div>
+						</div>
+					`;
+				})
+				.join("");
+
+			laporanChartContainer.innerHTML = `
+				<div class="fatigue-dashboard-detail-card fatigue-dashboard-lft-card">
+					<div class="fatigue-dashboard-lft-head">
+						<div>
+							<h3>Grafik Laporan Fatigue Tengah Shift</h3>
+							<p class="subtitle">Sumber data: menu Laporan Fatigue Tengah Shift dengan filter tanggal dan shift yang sama seperti dashboard.</p>
+						</div>
+						${legendHtml}
+					</div>
+					<div class="fatigue-dashboard-lft-overview">
+						<div class="fatigue-dashboard-lft-stat">
+							<p class="fatigue-dashboard-lft-stat-label">Total Laporan</p>
+							<p class="fatigue-dashboard-lft-stat-value">${stats.total}</p>
+						</div>
+						<div class="fatigue-dashboard-lft-stat">
+							<p class="fatigue-dashboard-lft-stat-label">Shift 1</p>
+							<p class="fatigue-dashboard-lft-stat-value">${stats.shiftSatu}</p>
+						</div>
+						<div class="fatigue-dashboard-lft-stat">
+							<p class="fatigue-dashboard-lft-stat-label">Shift 2</p>
+							<p class="fatigue-dashboard-lft-stat-value">${stats.shiftDua}</p>
+						</div>
+						<div class="fatigue-dashboard-lft-stat">
+							<p class="fatigue-dashboard-lft-stat-label">Sudah Kembali Operasi</p>
+							<p class="fatigue-dashboard-lft-stat-value">${stats.kembaliOperasi}</p>
+						</div>
+					</div>
+					<div class="fatigue-dashboard-lft-bars">${barsHtml}</div>
+				</div>
+			`;
 		}
 
 		function recordHasKurangTidur(record) {
@@ -7369,6 +7586,7 @@ function renderDashboard(session) {
 
 		function renderFatigueDashboardStats() {
 			const filteredRecords = getFilteredRecords();
+			const filteredLaporanRecords = getFilteredLaporanFatigueTengahRecords();
 			const stats = calculateStats(filteredRecords);
 
 			totalHistoryElement.textContent = String(stats.total);
@@ -7378,9 +7596,30 @@ function renderDashboard(session) {
 			donutElement.style.background = buildDonutBackground(stats);
 
 			rangeInfoElement.textContent = `Date range aktif: ${formatDateKey(startDateInput.value)} s.d. ${formatDateKey(endDateInput.value)} | Shift: ${shiftInput.options[shiftInput.selectedIndex]?.text || "Semua Shift"}`;
+			renderLaporanFatigueTengahChart(filteredLaporanRecords);
 			updateActiveTriggerState();
 			renderFatigueDashboardDetail(filteredRecords);
 			renderRepetitiveSummaryTable(filteredRecords);
+		}
+
+		function formatSyncStatus(label, syncResult, totalRecords) {
+			if (!syncResult) {
+				return `${label}: cache lokal dipakai.`;
+			}
+
+			if (syncResult.source === "merged") {
+				return `${label}: data server digabung dengan cache lokal (${totalRecords} data).`;
+			}
+
+			if (syncResult.source === "local" && syncResult.restoredFromEmptyBackend) {
+				return `${label}: server kosong, cache lokal dipulihkan (${totalRecords} data).`;
+			}
+
+			if (syncResult.source === "local") {
+				return `${label}: server belum mengirim data, cache lokal dipertahankan (${totalRecords} data).`;
+			}
+
+			return `${label}: tersinkron dari server (${totalRecords} data).`;
 		}
 
 		async function refreshFatigueDashboardFromServer() {
@@ -7394,19 +7633,15 @@ function renderDashboard(session) {
 			}
 
 			const backendRecords = await fetchRecordsFromBackend(FATIGUE_HISTORY_SYNC_ENDPOINT);
-			const syncResult = await reconcileFatigueHistoryRecords(backendRecords);
-			fatigueRecords = syncResult.records;
+			const fatigueSyncResult = await reconcileFatigueHistoryRecords(backendRecords);
+			fatigueRecords = fatigueSyncResult.records;
+
+			const laporanBackendRecords = await fetchRecordsFromBackend(LAPORAN_FATIGUE_TENGAH_SYNC_ENDPOINT);
+			const laporanSyncResult = await reconcileLaporanFatigueTengahRecords(laporanBackendRecords);
+			laporanFatigueTengahRecords = laporanSyncResult.records;
 
 			if (dashboardSyncInfo) {
-				if (syncResult.source === "merged") {
-					dashboardSyncInfo.textContent = `Data server dimuat dan digabung dengan cache lokal (${fatigueRecords.length} data).`;
-				} else if (syncResult.source === "local" && syncResult.restoredFromEmptyBackend) {
-					dashboardSyncInfo.textContent = `Server kosong. Cache lokal dipulihkan kembali ke server (${fatigueRecords.length} data).`;
-				} else if (syncResult.source === "local") {
-					dashboardSyncInfo.textContent = `Server belum mengirim data. Cache lokal dipertahankan (${fatigueRecords.length} data).`;
-				} else {
-					dashboardSyncInfo.textContent = `Data tersinkron dari server (${fatigueRecords.length} data).`;
-				}
+				dashboardSyncInfo.textContent = `${formatSyncStatus("History Fatigue", fatigueSyncResult, fatigueRecords.length)} ${formatSyncStatus("Laporan Tengah Shift", laporanSyncResult, laporanFatigueTengahRecords.length)}`;
 			}
 
 			renderFatigueDashboardStats();
@@ -7417,7 +7652,7 @@ function renderDashboard(session) {
 			isRefreshingFatigueDashboard = false;
 		}
 
-		const initialRange = getInitialDateRange(fatigueRecords);
+		const initialRange = getInitialDateRange([...fatigueRecords, ...laporanFatigueTengahRecords]);
 		startDateInput.value = initialRange.start;
 		endDateInput.value = initialRange.end;
 
